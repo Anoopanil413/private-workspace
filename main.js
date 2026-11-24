@@ -12,6 +12,7 @@ const { createNotesStore } = require('./lib/notes-store');
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
 const { createAdblock } = require('./lib/adblock');
+const { matchShortcut } = require('./renderer/shortcuts');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -93,6 +94,7 @@ app.on('web-contents-created', (_e, contents) => {
 
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
+    forwardBrowserShortcuts(contents, type);
     // A new page starts its own blocked-request count.
     contents.on('did-start-navigation', (details, _url, isInPlace, isMainFrame) => {
       const mainFrame = details?.isMainFrame ?? isMainFrame;
@@ -101,6 +103,29 @@ app.on('web-contents-created', (_e, contents) => {
     });
   }
 });
+
+// ---- browser keyboard shortcuts (renderer/shortcuts.js) ----
+// Keys pressed inside a web page never reach the host page, so browser shortcuts are
+// caught here and forwarded. In a page's pop-up window, Ctrl+W closes it and Ctrl+R
+// reloads it; other shortcuts are left to the page.
+function forwardBrowserShortcuts(contents, type) {
+  contents.on('before-input-event', (event, input) => {
+    // The main window's own page is created before mainWin is set, so it can land
+    // here too: its keys are handled by the host page, never by this handler.
+    if (contents === mainWin?.webContents) return;
+    const action = matchShortcut(input);
+    if (!action) return;
+    if (type === 'webview') {
+      event.preventDefault();
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-shortcut', { action });
+      return;
+    }
+    const win = BrowserWindow.fromWebContents(contents);
+    if (action === 'close-tab' && win) { event.preventDefault(); win.close(); }
+    if (action === 'reload') { event.preventDefault(); contents.reload(); }
+    if (action === 'hard-reload') { event.preventDefault(); contents.reloadIgnoringCache(); }
+  });
+}
 
 // ---- ad & tracker blocking (lib/adblock.js) ----
 const adblock = createAdblock({
@@ -193,6 +218,11 @@ function createWindow() {
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.webContents.on('will-navigate', (e) => e.preventDefault());
   mainWin.on('closed', () => { mainWin = null; });
+  // Mouse side buttons (back / forward) arrive as Windows app commands.
+  mainWin.on('app-command', (_e, command) => {
+    const action = { 'browser-backward': 'back', 'browser-forward': 'forward' }[command];
+    if (action) mainWin.webContents.send('workspace-shortcut', { action });
+  });
 }
 
 ipcMain.handle('toggle-protection', (event) => {

@@ -63,6 +63,16 @@
   /* Inactive tabs stay laid out (a display:none webview can come back at 0x0). */
   .webviews webview { position: absolute; inset: 0; border: 0; visibility: hidden; }
   .webviews webview.active { visibility: visible; z-index: 1; }
+  .findbar { position: absolute; top: 8px; right: 16px; z-index: 5; display: flex; gap: 6px; align-items: center;
+             background: var(--bar); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px;
+             box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .findbar[hidden] { display: none; }
+  .findbar input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text);
+                   padding: 4px 8px; outline: none; font: inherit; width: 200px; }
+  .findbar input:focus { border-color: var(--focus); }
+  #find-count { color: var(--muted); font-size: 12px; min-width: 44px; text-align: right; }
+  .findbar button { padding: 2px 8px; }
+  #zoom-badge { font-size: 12px; padding: 4px 8px; }
   .shortcuts { padding: 10px 12px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
                display: flex; gap: 8px; flex-wrap: wrap; background: var(--bar); flex: none; }
   .shortcuts a { color: var(--accent); text-decoration: none; background: var(--chip); padding: 3px 10px; border-radius: 999px; }
@@ -170,16 +180,25 @@
   <div class="panel active" id="panel-browser">
     <div class="btabs" id="browser-tabs" role="tablist"></div>
     <div class="nav">
-      <button id="back" title="Back">←</button>
-      <button id="fwd" title="Forward">→</button>
-      <button id="reload" title="Reload">⟳</button>
+      <button id="back" title="Back (Alt+Left)">←</button>
+      <button id="fwd" title="Forward (Alt+Right)">→</button>
+      <button id="reload" title="Reload (Ctrl+R)">⟳</button>
       <input id="url" placeholder="Search or enter address" spellcheck="false">
       <button id="ab-badge" class="ab-badge" aria-haspopup="true" aria-expanded="false">🛡 <span id="ab-count">0</span></button>
       <div id="ab-pop" class="ab-pop" role="dialog" aria-label="Ad blocking" hidden></div>
+      <button id="zoom-badge" title="Reset zoom (Ctrl+0)" hidden>100%</button>
       <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
       <button id="go" class="primary">Go</button>
     </div>
-    <div class="webviews" id="webviews"></div>
+    <div class="webviews" id="webviews">
+      <div class="findbar" id="findbar" role="search" hidden>
+        <input id="find-input" placeholder="Find in page" spellcheck="false" aria-label="Find in page">
+        <span id="find-count"></span>
+        <button id="find-prev" title="Previous (Shift+Enter)">↑</button>
+        <button id="find-next" title="Next (Enter)">↓</button>
+        <button id="find-close" title="Close (Esc)">×</button>
+      </div>
+    </div>
     <div class="shortcuts" id="bookmarks"></div>
   </div>
 
@@ -233,6 +252,7 @@
 <script src="renderer/notes-model.js"></script>
 <script src="renderer/markdown.js"></script>
 <script src="renderer/notes-ui.js"></script>
+<script src="renderer/shortcuts.js"></script>
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
 <script src="renderer/adblock-ui.js"></script>

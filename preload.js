@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('workspace', {
   getProtection: () => ipcRenderer.invoke('get-protection'),
   onNotice: (fn) => ipcRenderer.on('workspace-notice', (_e, msg) =>
     fn(String(msg && msg.text), { sticky: Boolean(msg && msg.sticky) })),
+  onShortcut: (fn) => ipcRenderer.on('workspace-shortcut', (_e, msg) => fn({ action: String(msg && msg.action) })),
   onOpenTab: (fn) => ipcRenderer.on('workspace-open-tab', (_e, msg) =>
     fn({ url: String(msg && msg.url), background: Boolean(msg && msg.background) })),
   adblock: {

@@ -14,6 +14,27 @@ npm start
 
 If `npm start` says Electron failed to install, run `node node_modules/electron/install.js` once.
 
+## Browser shortcuts
+
+The usual browser keys work, also while you're typing inside a web page:
+
+| Keys | Action |
+|---|---|
+| Ctrl+T | New tab (the cursor goes to the address bar, so you can type straight away) |
+| Ctrl+W, Ctrl+F4 / Ctrl+Shift+T | Close tab / reopen the last closed tab |
+| Ctrl+Tab, Ctrl+PgDn / Ctrl+Shift+Tab, Ctrl+PgUp | Next / previous tab |
+| Ctrl+1 … Ctrl+8 / Ctrl+9 | Go to that tab / the last tab |
+| Ctrl+L, Alt+D, F6 | Address bar |
+| Ctrl+R, F5 / Ctrl+Shift+R, Ctrl+F5 | Reload / reload without the cache |
+| Alt+← / Alt+→, mouse back/forward buttons | Back / forward |
+| Ctrl+F, then Enter / Shift+Enter, F3 / Shift+F3 | Find in page, next / previous match |
+| Ctrl+= / Ctrl+- / Ctrl+0 | Zoom in / out / reset |
+| Ctrl+D | Add the page to quick open |
+
+The address bar opens sites (`example.com`), local addresses (`localhost:3000`, `192.168.1.10`) and searches
+DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
+editor keeps its own keys.
+
 ## How it's protected
 
 | What | How | Verified |

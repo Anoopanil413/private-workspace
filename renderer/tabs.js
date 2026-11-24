@@ -14,13 +14,46 @@
     return ids[i + 1] ?? ids[i - 1] ?? null;
   }
 
+  const NEW_TAB_URL = 'about:blank';
+  const MAX_CLOSED = 20;
+
+  // What the address bar opens: a URL as typed, a host (with optional :port and path),
+  // or a DuckDuckGo search. Local addresses (localhost, IPv4) use http, like browsers.
+  const SEARCH = 'https://duckduckgo.com/?q=';
+  function addressToUrl(input) {
+    const s = String(input).trim();
+    if (!s) return null;
+    if (/^https?:\/\//i.test(s)) return s;
+    const m = /^([\w-]+(?:\.[\w-]+)*)(:\d{1,5})?(\/\S*)?$/.exec(s);
+    if (m) {
+      const host = m[1];
+      const local = host === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+      if (local) return `http://${s}`;
+      if (host.includes('.')) return `https://${s}`;
+    }
+    return SEARCH + encodeURIComponent(s);
+  }
+
+  // Next/previous tab, wrapping around at the ends.
+  const cycleIndex = (length, index, delta) => (index + delta + length) % length;
+
+  // Ctrl+1..8 -> that tab if it exists; Ctrl+9 -> the last tab.
+  function indexForNumber(length, n) {
+    if (!length) return null;
+    if (n === 9) return length - 1;
+    return n - 1 < length ? n - 1 : null;
+  }
+
   function tabLabel(title, url) {
     if (title) return title;
     try { return new URL(url).hostname || 'New tab'; } catch { return 'New tab'; }
   }
 
-  function createTabs({ strip, host, homeUrl }) {
+  // onNewTab: called for the "+" button (the app opens a blank tab and focuses the
+  // address bar, same as Ctrl+T).
+  function createTabs({ strip, host, homeUrl, onNewTab }) {
     const tabs = [];
+    const closed = []; // URLs of closed tabs, newest last (Ctrl+Shift+T)
     let activeId = null;
     let seq = 0;
     const listeners = [];
@@ -31,9 +64,9 @@
 
     const addBtn = document.createElement('button');
     addBtn.className = 'btab-add';
-    addBtn.title = 'New tab';
+    addBtn.title = 'New tab (Ctrl+T)';
     addBtn.textContent = '＋';
-    addBtn.addEventListener('click', () => open(homeUrl));
+    addBtn.addEventListener('click', () => (onNewTab ? onNewTab() : open(NEW_TAB_URL)));
     strip.append(addBtn);
 
     function paint(tab) {
@@ -94,11 +127,15 @@
       const tab = find(id);
       if (!tab) return;
       const next = nextActiveAfterClose(tabs.map((t) => t.id), id, activeId);
+      if (/^https?:\/\//i.test(tab.url)) {
+        closed.push(tab.url);
+        if (closed.length > MAX_CLOSED) closed.shift();
+      }
       tabs.splice(tabs.indexOf(tab), 1);
       tab.el.remove();
       tab.webview.remove();
       if (next) activate(next);
-      else { activeId = null; open(homeUrl); }
+      else { activeId = null; if (onNewTab) onNewTab(); else open(homeUrl); }
     }
 
     return {
@@ -106,9 +143,11 @@
       close,
       activate,
       active,
+      list: () => tabs.slice(),
+      reopen: () => (closed.length ? open(closed.pop()) : null),
       onChange: (fn) => { listeners.push(fn); },
     };
   }
 
-  return { createTabs, nextActiveAfterClose, tabLabel };
+  return { createTabs, nextActiveAfterClose, tabLabel, cycleIndex, indexForNumber, addressToUrl, NEW_TAB_URL };
 });
