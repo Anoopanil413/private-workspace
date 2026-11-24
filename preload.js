@@ -7,5 +7,8 @@ contextBridge.exposeInMainWorld('workspace', {
   notes: {
     load: () => ipcRenderer.invoke('notes:load'),
     save: (data) => ipcRenderer.invoke('notes:save', data),
+    exportNotes: (opts) => ipcRenderer.invoke('notes:export', opts),
+    pickImport: () => ipcRenderer.invoke('notes:pick-import'),
+    importNotes: (opts) => ipcRenderer.invoke('notes:import', opts),
   },
 });

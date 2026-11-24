@@ -85,6 +85,23 @@
   #notes-preview pre { background: #0b0b0f; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; }
   #notes-preview pre code { background: none; padding: 0; }
   #notes-preview blockquote { border-left: 3px solid var(--line); padding-left: 12px; color: var(--muted); }
+  #notes-dialog { background: var(--bar); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+                  padding: 20px; width: min(420px, calc(100vw - 32px)); }
+  #notes-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  #notes-dialog h3 { margin: 0 0 4px; font-size: 16px; }
+  #nd-sub { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+  #nd-sub:empty { display: none; }
+  #nd-kind { border: 0; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 6px; }
+  #nd-kind label { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+  #nd-kind input { accent-color: var(--accent); margin-top: 4px; }
+  #nd-kind .warn { color: var(--danger); }
+  .nd-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .nd-field input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
+                    padding: 7px 10px; font: inherit; outline: none; }
+  .nd-field input:focus { border-color: var(--focus); }
+  #nd-error { color: var(--danger); font-size: 13px; margin: 0 0 10px; min-height: 1em; }
+  .nd-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  [hidden] { display: none !important; }
   .notes-foot { padding: 6px 12px; color: var(--muted); font-size: 12px; background: var(--bar); border-top: 1px solid var(--line); flex: none; }
 
   .banner { padding: 8px 12px; font-size: 13px; background: #3b1d1d; color: #fecaca; display: none; }
@@ -141,6 +158,8 @@
       </aside>
       <section class="notes-main">
         <div class="notes-tools">
+          <button id="notes-import" title="Add notes from a .pwnotes, .txt or .md file">Import…</button>
+          <button id="notes-export" title="Save all notes to Downloads\Private Workspace">Export…</button>
           <span class="spacer"></span>
           <button id="notes-preview-toggle" aria-pressed="false" title="Show the Markdown preview">Preview</button>
           <button id="notes-delete" class="danger">Delete</button>
@@ -152,6 +171,26 @@
         <div class="notes-foot" id="notes-status">Opening notes…</div>
       </section>
     </div>
+
+    <dialog id="notes-dialog" aria-labelledby="nd-title">
+      <h3 id="nd-title">Export notes</h3>
+      <p id="nd-sub"></p>
+      <fieldset id="nd-kind">
+        <label><input type="radio" name="nd-kind" value="pwnotes" checked>
+          <span><b>Encrypted</b> (.pwnotes): needs the password, opens on any PC</span></label>
+        <label><input type="radio" name="nd-kind" value="txt">
+          <span><b>Plain text</b> (.txt): <span class="warn">not encrypted</span></span></label>
+      </fieldset>
+      <label class="nd-field" id="nd-pass-row">Password
+        <input type="password" id="nd-pass" autocomplete="off" spellcheck="false"></label>
+      <label class="nd-field" id="nd-confirm-row">Confirm password
+        <input type="password" id="nd-confirm" autocomplete="off" spellcheck="false"></label>
+      <p id="nd-error" role="alert"></p>
+      <div class="nd-actions">
+        <button id="nd-cancel" type="button">Cancel</button>
+        <button id="nd-ok" type="button" class="primary">Export</button>
+      </div>
+    </dialog>
   </div>
 
 <script src="renderer/notes-model.js"></script>

@@ -138,6 +138,107 @@
     // waits for running saves before quitting.
     window.addEventListener('beforeunload', () => { if (saveTimer) saveNow(); });
 
+    // ---- export / import (files go through the main process; see lib/notes-export.js) ----
+    const MIN_PASSWORD = 8;
+    const dlg = $('#notes-dialog');
+    const dlgTitle = $('#nd-title');
+    const dlgSub = $('#nd-sub');
+    const kindBox = $('#nd-kind');
+    const passRow = $('#nd-pass-row');
+    const confirmRow = $('#nd-confirm-row');
+    const pass = $('#nd-pass');
+    const confirmPass = $('#nd-confirm');
+    const dlgError = $('#nd-error');
+    const okBtn = $('#nd-ok');
+    let mode = null; // 'export' | 'import'
+    let importToken = null;
+
+    const exportKind = () => root.querySelector('input[name="nd-kind"]:checked').value;
+
+    function layoutDialog() {
+      const needsPassword = mode === 'import' || exportKind() === 'pwnotes';
+      kindBox.hidden = mode !== 'export';
+      passRow.hidden = !needsPassword;
+      confirmRow.hidden = !(mode === 'export' && needsPassword);
+      pass.autocomplete = mode === 'export' ? 'new-password' : 'current-password';
+    }
+
+    function openDialog(nextMode, subtitle) {
+      mode = nextMode;
+      dlgTitle.textContent = mode === 'export' ? 'Export notes' : 'Import notes';
+      dlgSub.textContent = subtitle || '';
+      okBtn.textContent = mode === 'export' ? 'Export' : 'Import';
+      pass.value = confirmPass.value = dlgError.textContent = '';
+      layoutDialog();
+      dlg.showModal();
+      if (!passRow.hidden) pass.focus();
+    }
+
+    function closeDialog() {
+      pass.value = confirmPass.value = '';
+      importToken = null;
+      if (dlg.open) dlg.close();
+    }
+
+    function applyImport(result) {
+      data = result.data;
+      select(active() ? activeId : N.sortByUpdated(data.notes)[0].id);
+      status.textContent = 'Saved, encrypted · ' + new Date().toLocaleTimeString();
+      onNotice(result.added
+        ? `Imported ${result.added} note${result.added === 1 ? '' : 's'}.`
+        : 'Nothing new to import: those notes are already here.');
+    }
+
+    async function confirmDialog() {
+      dlgError.textContent = '';
+      okBtn.disabled = true;
+      try {
+        if (mode === 'export') {
+          const kind = exportKind();
+          if (kind === 'pwnotes') {
+            if (pass.value.length < MIN_PASSWORD) { dlgError.textContent = `Use at least ${MIN_PASSWORD} characters.`; return; }
+            if (pass.value !== confirmPass.value) { dlgError.textContent = 'The passwords do not match.'; return; }
+          }
+          await flush();
+          const result = await store.exportNotes({ kind, password: kind === 'pwnotes' ? pass.value : undefined });
+          if (result && result.ok) closeDialog();
+          else dlgError.textContent = (result && result.error) || 'Export failed.';
+        } else {
+          const result = await store.importNotes({ token: importToken, password: pass.value });
+          if (result && result.ok) { closeDialog(); applyImport(result); return; }
+          if (result && result.code === 'BAD_PASSWORD') { dlgError.textContent = 'Wrong password or damaged file.'; pass.select(); return; }
+          closeDialog();
+          onNotice('Import failed: ' + ((result && result.error) || 'unknown error'));
+        }
+      } finally {
+        okBtn.disabled = false;
+      }
+    }
+
+    async function startImport() {
+      await flush();
+      const picked = await store.pickImport();
+      if (!picked) return;
+      if (picked.kind === 'pwnotes') {
+        importToken = picked.token;
+        openDialog('import', `Enter the password for ${picked.name}.`);
+        return;
+      }
+      const result = await store.importNotes({ token: picked.token });
+      if (result && result.ok) applyImport(result);
+      else onNotice('Import failed: ' + ((result && result.error) || 'unknown error'));
+    }
+
+    $('#notes-export').addEventListener('click', () => openDialog('export'));
+    $('#notes-import').addEventListener('click', startImport);
+    $('#nd-cancel').addEventListener('click', closeDialog);
+    dlg.addEventListener('close', () => { pass.value = confirmPass.value = ''; });
+    okBtn.addEventListener('click', confirmDialog);
+    kindBox.addEventListener('change', layoutDialog);
+    for (const input of [pass, confirmPass]) {
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmDialog(); } });
+    }
+
     async function init() {
       editor.disabled = true;
       status.textContent = 'Opening notes…';

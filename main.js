@@ -2,12 +2,14 @@
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
 const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session } = require('electron');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const nativeGuard = require('./native-guard');
 const { lockTitle } = require('./lib/window-privacy');
 const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
+const notesExport = require('./lib/notes-export');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -173,6 +175,81 @@ ipcMain.handle('notes:save', async (event, data) => {
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Export: written straight to Downloads\Private Workspace (a Save dialog is hosted
+// outside this process and would be visible to capture).
+ipcMain.handle('notes:export', async (event, { kind, password } = {}) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, code: 'NOT_ALLOWED' };
+  if (kind !== 'pwnotes' && kind !== 'txt') return { ok: false, code: 'BAD_KIND' };
+  try {
+    await notesStore.whenIdle();
+    const { data } = await notesStore.load();
+    const bytes = kind === 'pwnotes'
+      ? await notesExport.encryptExport(data, password)
+      : Buffer.from(notesExport.toText(data), 'utf8');
+    const dir = path.join(app.getPath('downloads'), 'Private Workspace');
+    await fs.promises.mkdir(dir, { recursive: true });
+    const file = await notesExport.uniqueFile(dir, `notes-${new Date().toISOString().slice(0, 10)}`, kind);
+    await fs.promises.writeFile(file, bytes);
+    notifyHost(`Exported ${data.notes.length} notes to Downloads\\Private Workspace\\${path.basename(file)}.`
+      + (kind === 'txt' ? ' This file is NOT encrypted, and opening it in another app is visible to capture.' : ''));
+    return { ok: true, file };
+  } catch (err) {
+    return { ok: false, code: err.code || 'FAILED', error: err.message };
+  }
+});
+
+// Import: the Open dialog is shown from this process, so native-guard protects it.
+// Picked files wait here (by token) for the password, for at most 5 minutes.
+const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+const pendingImports = new Map();
+
+ipcMain.handle('notes:pick-import', async (event) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWin, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Notes', extensions: ['pwnotes', 'txt', 'md'] }],
+  });
+  if (canceled || !filePaths.length) return null;
+  const encrypted = filePaths.filter((p) => path.extname(p).toLowerCase() === '.pwnotes');
+  if (encrypted.length && filePaths.length > 1) {
+    notifyHost('Import one .pwnotes file at a time, or only text files.');
+    return null;
+  }
+  const sizes = await Promise.all(filePaths.map(async (p) => (await fs.promises.stat(p)).size));
+  if (sizes.reduce((a, b) => a + b, 0) > MAX_IMPORT_BYTES) {
+    notifyHost('Those files are too large to import (limit 20 MB).');
+    return null;
+  }
+  const files = await Promise.all(filePaths.map(async (p) => ({ name: path.basename(p), bytes: await fs.promises.readFile(p) })));
+  const token = crypto.randomUUID();
+  const kind = encrypted.length ? 'pwnotes' : 'text';
+  pendingImports.set(token, { kind, files });
+  setTimeout(() => pendingImports.delete(token), 5 * 60 * 1000).unref();
+  return { token, kind, name: files.length === 1 ? files[0].name : `${files.length} files` };
+});
+
+ipcMain.handle('notes:import', async (event, { token, password } = {}) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, code: 'NOT_ALLOWED' };
+  const pending = pendingImports.get(token);
+  if (!pending) return { ok: false, code: 'EXPIRED', error: 'Pick the file again.' };
+  try {
+    const incoming = pending.kind === 'pwnotes'
+      ? (await notesExport.decryptExport(pending.files[0].bytes, password)).notes
+      : notesExport.textToNotes(pending.files.map((f) => ({ name: f.name, text: f.bytes.toString('utf8') })),
+        Date.now(), () => crypto.randomUUID());
+    await notesStore.whenIdle();
+    const { data: current } = await notesStore.load();
+    const { data, added } = notesExport.mergeNotes(current, incoming, () => crypto.randomUUID());
+    await notesStore.save(data);
+    pendingImports.delete(token);
+    return { ok: true, data, added };
+  } catch (err) {
+    // Keep the picked file on a wrong password so the user can try again.
+    if (err.code !== 'BAD_PASSWORD') pendingImports.delete(token);
+    return { ok: false, code: err.code || 'FAILED', error: err.message };
   }
 });
 
