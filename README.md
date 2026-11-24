@@ -27,6 +27,7 @@ If `npm start` says Electron failed to install, run `node node_modules/electron/
 | Notifications, camera, microphone, location | Denied (notifications would appear outside the window) | — |
 | Exporting / importing notes | Export writes straight to `Downloads\Private Workspace` (no Save dialog): **encrypted** `.pwnotes` (your password, scrypt + AES-256-GCM; opens on any PC) or plain `.txt`. Import uses the app's own Open dialog and adds notes without duplicating ones you have | Unit-tested (`notes-export`) |
 | Links that open a new tab (`target=_blank`, Ctrl+click) | Open as a tab inside the workspace. `window.open()` with a size (sign-in pop-ups) still gets a protected pop-up window, so logins keep working | Unit-tested (`routeWindowOpen`) |
+| Ads and trackers | Requests to known ad/tracking servers are blocked (Ghostery's prebuilt EasyList + EasyPrivacy lists, downloaded on first launch and refreshed weekly). The 🛡 badge shows the count; switch it off per site | Unit-tested (`adblock`) |
 | Window titles in the taskbar and Alt+Tab | Every window, including pages' pop-ups, keeps the title "Private Workspace" | Unit-tested (`lockTitle`) |
 | Someone walks up / you need it gone now | Panic key **Ctrl+Shift+H** hides every window (also from the taskbar and Alt+Tab), from any app; press again to restore | Unit-tested (`createPanic`) |
 
@@ -38,6 +39,8 @@ If `npm start` says Electron failed to install, run `node node_modules/electron/
 - Folder uploads and the File System Access pickers (`showOpenFilePicker`) aren't supported, because their
   dialogs can't be protected. Sites fall back to normal file uploads.
 - Windows-owned UI isn't covered: the emoji panel (Win + .), IME candidate windows, and system prompts.
+- Ad blocking blocks network requests only; it doesn't hide page elements, so empty ad boxes can remain.
+  Without internet on the very first launch there is no block list yet, so pages load unblocked (a notice says so).
 - Notes are saved encrypted (Windows DPAPI) in `%APPDATA%\private-workspace\notes.enc`. Other Windows accounts
   can't read them, but a program running **as you** can still ask Windows to decrypt them. If the file can't be
   read (for example it was copied from another account), it's moved aside as `notes.enc.corrupt-<time>`,

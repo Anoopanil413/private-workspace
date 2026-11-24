@@ -68,9 +68,17 @@
     getCurrent: () => { const t = tabs.active(); return t ? { title: t.title, url: t.url } : null; },
     onOpen: navigate,
   });
+  const shieldBadge = PWAdblockUI.createAdblockBadge({
+    badge: document.getElementById('ab-badge'),
+    countEl: document.getElementById('ab-count'),
+    pop: document.getElementById('ab-pop'),
+    adblock: window.workspace.adblock,
+    getActive: () => tabs.active(),
+  });
   tabs.onChange(t => {
     if (document.activeElement !== url) url.value = t ? t.url : '';
     bookmarks.refresh();
+    shieldBadge.refresh();
   });
   // target=_blank / Ctrl+click links from pages arrive here (see lib/window-routing.js).
   window.workspace.onOpenTab(({ url: u, background }) => {

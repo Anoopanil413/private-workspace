@@ -11,6 +11,7 @@ const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
+const { createAdblock } = require('./lib/adblock');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -91,8 +92,59 @@ app.on('web-contents-created', (_e, contents) => {
 
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
+    // A new page starts its own blocked-request count.
+    contents.on('did-start-navigation', (details, _url, isInPlace, isMainFrame) => {
+      const mainFrame = details?.isMainFrame ?? isMainFrame;
+      const sameDocument = details?.isSameDocument ?? isInPlace;
+      if (mainFrame && !sameDocument) resetBlocked(contents.id);
+    });
   }
 });
+
+// ---- ad & tracker blocking (lib/adblock.js) ----
+const adblock = createAdblock({
+  cacheFile: path.join(app.getPath('userData'), 'adblock-engine.bin'),
+  allowFile: path.join(app.getPath('userData'), 'adblock-allow.json'),
+  fetch: (...args) => fetch(...args),
+});
+const blockedCounts = new Map(); // webContents id -> requests blocked on its current page
+const countTimers = new Map();
+
+function sendBlocked(id) {
+  countTimers.delete(id);
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('adblock:count', { webContentsId: id, count: blockedCounts.get(id) || 0 });
+  }
+}
+
+function onBlocked(id) {
+  blockedCounts.set(id, (blockedCounts.get(id) || 0) + 1);
+  if (!countTimers.has(id)) countTimers.set(id, setTimeout(() => sendBlocked(id), 250));
+}
+
+function resetBlocked(id) {
+  blockedCounts.set(id, 0);
+  clearTimeout(countTimers.get(id));
+  sendBlocked(id);
+}
+
+ipcMain.handle('adblock:get-site', (event, host) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return { running: adblock.isRunning(), allowed: adblock.isAllowed(String(host)) };
+});
+
+ipcMain.handle('adblock:set-site', async (event, { host, allowed } = {}) => {
+  if (event.sender !== mainWin?.webContents || typeof host !== 'string' || !host) return null;
+  await adblock.setAllowed(host, !!allowed);
+  return { running: adblock.isRunning(), allowed: adblock.isAllowed(host) };
+});
+
+// Shows a notice once the host page can display it.
+function notifyWhenReady(message) {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  if (mainWin.webContents.isLoading()) mainWin.webContents.once('did-finish-load', () => notifyHost(message));
+  else notifyHost(message);
+}
 
 function setupSession() {
   const ses = session.fromPartition(PARTITION);
@@ -110,6 +162,10 @@ function setupSession() {
         : `Download of ${item.getFilename()} ${state}.`);
     });
   });
+
+  adblock.start(ses, onBlocked).then((running) => {
+    if (!running) notifyWhenReady('Ad blocking is off: the block list could not be downloaded. Pages still load normally.');
+  }, (err) => notifyWhenReady(`Ad blocking is off: ${err.message}`));
 }
 
 function createWindow() {

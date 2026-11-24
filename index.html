@@ -77,6 +77,14 @@
   .shortcuts a:hover { text-decoration: underline; }
   #star[aria-pressed="true"] { color: var(--warn, #fbbf24); }
   #star:disabled { opacity: .4; cursor: default; }
+  .nav { position: relative; }
+  .ab-badge { display: inline-flex; gap: 4px; align-items: center; background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+  .ab-pop { position: absolute; right: 60px; top: calc(100% + 4px); z-index: 10; background: var(--bar); border: 1px solid var(--line);
+            border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 260px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.5); font-size: 13px; }
+  .ab-pop .ab-sub { color: var(--muted); }
+  .ab-pop .ab-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; }
+  .ab-pop .ab-toggle input { accent-color: var(--accent); }
 
   /* notes */
   .notes-wrap { flex: 1; display: flex; min-height: 0; }
@@ -160,6 +168,8 @@
       <button id="fwd" title="Forward">→</button>
       <button id="reload" title="Reload">⟳</button>
       <input id="url" placeholder="Search or enter address" spellcheck="false">
+      <button id="ab-badge" class="ab-badge" aria-haspopup="true" aria-expanded="false">🛡 <span id="ab-count">0</span></button>
+      <div id="ab-pop" class="ab-pop" role="dialog" aria-label="Ad blocking" hidden></div>
       <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
       <button id="go" class="primary">Go</button>
     </div>
@@ -217,6 +227,7 @@
 <script src="renderer/notes-ui.js"></script>
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
+<script src="renderer/adblock-ui.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>
