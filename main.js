@@ -1,12 +1,13 @@
 // Private Workspace — windows whose contents are excluded from screen capture.
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
-const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const nativeGuard = require('./native-guard');
 const { lockTitle } = require('./lib/window-privacy');
 const { createPanic } = require('./lib/panic');
+const { createNotesStore } = require('./lib/notes-store');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -150,6 +151,31 @@ ipcMain.handle('toggle-protection', (event) => {
 
 ipcMain.handle('get-protection', () => protectedOn);
 
+// Notes: encrypted with Windows DPAPI (safeStorage), only the host page may use them.
+const notesStore = createNotesStore({
+  file: path.join(app.getPath('userData'), 'notes.enc'),
+  cipher: {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (s) => safeStorage.encryptString(s),
+    decrypt: (b) => safeStorage.decryptString(b),
+  },
+});
+
+ipcMain.handle('notes:load', (event) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return notesStore.load();
+});
+
+ipcMain.handle('notes:save', async (event, data) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, error: 'Not allowed' };
+  try {
+    await notesStore.save(data);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // window.print() -> PDF in Downloads\Private Workspace (the system print dialog is
 // hosted by explorer.exe and would be visible to capture). Rate-limited per page.
 const lastPrint = new WeakMap();
@@ -225,6 +251,16 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
+
+// Don't exit while a notes save is still being written (e.g. the last edit, sent as the
+// window closed).
+let notesSettled = false;
+app.on('will-quit', (e) => {
+  if (notesSettled) return;
+  e.preventDefault();
+  notesSettled = true;
+  notesStore.whenIdle().finally(() => app.quit());
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

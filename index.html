@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:">
 
 <title>Private Workspace</title>
 <style>
@@ -55,8 +55,36 @@
   .shortcuts a:hover { text-decoration: underline; }
 
   /* notes */
-  #notes { flex: 1; width: 100%; resize: none; border: 0; outline: none; background: var(--bg);
+  .notes-wrap { flex: 1; display: flex; min-height: 0; }
+  .notes-side { width: 230px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px;
+                background: var(--bar); border-right: 1px solid var(--line); min-height: 0; }
+  .notes-side input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text);
+                      padding: 6px 10px; outline: none; font: inherit; }
+  .notes-side input:focus { border-color: var(--focus); }
+  #notes-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .note-item { width: 100%; text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; display: block; }
+  .note-item:hover { background: var(--chip); border: 0; }
+  .note-item.active { background: var(--chip); box-shadow: inset 2px 0 0 var(--accent); }
+  .note-item .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .note-item .w { display: block; color: var(--muted); font-size: 11px; }
+  .notes-empty { color: var(--muted); font-size: 12px; padding: 6px 8px; }
+  .notes-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .notes-tools { display: flex; gap: 6px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); flex: none; }
+  .notes-tools .spacer { flex: 1; }
+  .notes-tools button { padding: 4px 10px; font-size: 13px; }
+  .notes-tools button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .notes-tools .danger:hover { border-color: var(--danger); color: var(--danger); }
+  .notes-edit { flex: 1; display: flex; min-height: 0; }
+  #notes { flex: 1; width: 100%; resize: none; border: 0; outline: none; background: var(--bg); min-width: 0;
            color: var(--text); padding: 20px; font: 15px/1.7 "Segoe UI", system-ui, sans-serif; }
+  #notes-preview { flex: 1; overflow-y: auto; padding: 20px; border-left: 1px solid var(--line); min-width: 0; line-height: 1.7; }
+  #notes-preview[hidden] { display: none; }
+  #notes-preview h1, #notes-preview h2, #notes-preview h3 { margin: 0 0 8px; line-height: 1.3; }
+  #notes-preview p, #notes-preview ul, #notes-preview ol, #notes-preview blockquote, #notes-preview pre { margin: 0 0 12px; }
+  #notes-preview code { font: 13px Consolas, monospace; background: var(--chip); padding: 1px 5px; border-radius: 4px; }
+  #notes-preview pre { background: #0b0b0f; border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; }
+  #notes-preview pre code { background: none; padding: 0; }
+  #notes-preview blockquote { border-left: 3px solid var(--line); padding-left: 12px; color: var(--muted); }
   .notes-foot { padding: 6px 12px; color: var(--muted); font-size: 12px; background: var(--bar); border-top: 1px solid var(--line); flex: none; }
 
   .banner { padding: 8px 12px; font-size: 13px; background: #3b1d1d; color: #fecaca; display: none; }
@@ -105,76 +133,30 @@
 
   <!-- Notes -->
   <div class="panel" id="panel-notes">
-    <textarea id="notes" placeholder="Private notes — saved on this device only, and hidden from screen capture."></textarea>
-    <div class="notes-foot" id="notes-status">Saved locally.</div>
+    <div class="notes-wrap">
+      <aside class="notes-side">
+        <input id="notes-search" type="search" placeholder="Search notes" spellcheck="false">
+        <button id="notes-new">＋ New note</button>
+        <ul id="notes-list"></ul>
+      </aside>
+      <section class="notes-main">
+        <div class="notes-tools">
+          <span class="spacer"></span>
+          <button id="notes-preview-toggle" aria-pressed="false" title="Show the Markdown preview">Preview</button>
+          <button id="notes-delete" class="danger">Delete</button>
+        </div>
+        <div class="notes-edit">
+          <textarea id="notes" placeholder="Private notes — encrypted on this device, and hidden from screen capture.&#10;&#10;Markdown works: # heading, **bold**, *italic*, - list, `code`"></textarea>
+          <div id="notes-preview" hidden></div>
+        </div>
+        <div class="notes-foot" id="notes-status">Opening notes…</div>
+      </section>
+    </div>
   </div>
 
-<script>
-  // ---- tabs ----
-  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
-    const p = t.dataset.panel;
-    document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x.id === 'panel-' + p));
-  }));
-
-  // ---- protection toggle ----
-  const shield = document.getElementById('shield');
-  const shieldText = document.getElementById('shield-text');
-  const toggleBtn = document.getElementById('toggle');
-  const banner = document.getElementById('banner');
-  function paint(on) {
-    shield.className = 'shield ' + (on ? 'on' : 'off');
-    shieldText.textContent = on ? 'Hidden from screen capture' : 'Visible to screen capture';
-    toggleBtn.textContent = on ? 'Turn off' : 'Turn on';
-    banner.classList.toggle('show', !on);
-  }
-  toggleBtn.addEventListener('click', async () => paint(await window.workspace.toggleProtection()));
-  window.workspace.getProtection().then(paint);
-
-  // ---- notices from the main process (blocked links, downloads) ----
-  const notice = document.getElementById('notice');
-  let noticeTimer;
-  window.workspace.onNotice(msg => {
-    notice.textContent = msg;
-    notice.classList.add('show');
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => notice.classList.remove('show'), 8000);
-  });
-
-  // ---- browser ----
-  const wv = document.getElementById('wv');
-  const url = document.getElementById('url');
-  const toUrl = (s) => {
-    s = s.trim();
-    if (!s) return null;
-    if (/^https?:\/\//i.test(s)) return s;
-    if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(s)) return 'https://' + s;
-    return 'https://duckduckgo.com/?q=' + encodeURIComponent(s);
-  };
-  const navigate = (s) => { const u = toUrl(s); if (u) wv.src = u; };
-  document.getElementById('go').addEventListener('click', () => navigate(url.value));
-  url.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(url.value); });
-  document.getElementById('back').addEventListener('click', () => wv.canGoBack() && wv.goBack());
-  document.getElementById('fwd').addEventListener('click', () => wv.canGoForward() && wv.goForward());
-  document.getElementById('reload').addEventListener('click', () => wv.reload());
-  wv.addEventListener('did-navigate', e => { url.value = e.url; });
-  wv.addEventListener('did-navigate-in-page', e => { url.value = e.url; });
-  document.querySelectorAll('.shortcuts a').forEach(a =>
-    a.addEventListener('click', e => { e.preventDefault(); wv.src = a.dataset.url; }));
-
-  // ---- notes (local only) ----
-  const notes = document.getElementById('notes');
-  const notesStatus = document.getElementById('notes-status');
-  try { notes.value = localStorage.getItem('private-notes') || ''; } catch {}
-  let t;
-  notes.addEventListener('input', () => {
-    notesStatus.textContent = 'Saving…';
-    clearTimeout(t);
-    t = setTimeout(() => {
-      try { localStorage.setItem('private-notes', notes.value); notesStatus.textContent = 'Saved locally · ' + new Date().toLocaleTimeString(); }
-      catch { notesStatus.textContent = 'Could not save.'; }
-    }, 400);
-  });
-</script>
+<script src="renderer/notes-model.js"></script>
+<script src="renderer/markdown.js"></script>
+<script src="renderer/notes-ui.js"></script>
+<script src="renderer/app.js"></script>
 </body>
 </html>

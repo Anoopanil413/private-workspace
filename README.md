@@ -36,4 +36,7 @@ If `npm start` says Electron failed to install, run `node node_modules/electron/
 - Folder uploads and the File System Access pickers (`showOpenFilePicker`) aren't supported, because their
   dialogs can't be protected. Sites fall back to normal file uploads.
 - Windows-owned UI isn't covered: the emoji panel (Win + .), IME candidate windows, and system prompts.
-- Notes are saved unencrypted in `%APPDATA%\private-workspace`; any program running as you can read that file.
+- Notes are saved encrypted (Windows DPAPI) in `%APPDATA%\private-workspace\notes.enc`. Other Windows accounts
+  can't read them, but a program running **as you** can still ask Windows to decrypt them. If the file can't be
+  read (for example it was copied from another account), it's moved aside as `notes.enc.corrupt-<time>`,
+  never overwritten.
