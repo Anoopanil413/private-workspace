@@ -33,9 +33,14 @@
   }
   window.workspace.onNotice(showNotice);
 
-  // ---- browser ----
-  const wv = document.getElementById('wv');
+  // ---- browser (tabs) ----
+  const HOME = 'https://duckduckgo.com';
   const url = document.getElementById('url');
+  const tabs = PWTabs.createTabs({
+    strip: document.getElementById('browser-tabs'),
+    host: document.getElementById('webviews'),
+    homeUrl: HOME,
+  });
   const toUrl = (s) => {
     s = s.trim();
     if (!s) return null;
@@ -43,16 +48,28 @@
     if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(s)) return 'https://' + s;
     return 'https://duckduckgo.com/?q=' + encodeURIComponent(s);
   };
-  const navigate = (s) => { const u = toUrl(s); if (u) wv.src = u; };
+  // Opens in the active tab (or a new one when there is none).
+  const navigate = (s) => {
+    const u = toUrl(s);
+    if (!u) return;
+    const tab = tabs.active();
+    if (tab) tab.webview.src = u; else tabs.open(u);
+  };
+  // Webview methods throw until the page has attached; ignore clicks that early.
+  const onActive = (fn) => () => { const t = tabs.active(); if (t) { try { fn(t.webview); } catch {} } };
   document.getElementById('go').addEventListener('click', () => navigate(url.value));
   url.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(url.value); });
-  document.getElementById('back').addEventListener('click', () => wv.canGoBack() && wv.goBack());
-  document.getElementById('fwd').addEventListener('click', () => wv.canGoForward() && wv.goForward());
-  document.getElementById('reload').addEventListener('click', () => wv.reload());
-  wv.addEventListener('did-navigate', e => { url.value = e.url; });
-  wv.addEventListener('did-navigate-in-page', e => { url.value = e.url; });
+  document.getElementById('back').addEventListener('click', onActive(w => w.canGoBack() && w.goBack()));
+  document.getElementById('fwd').addEventListener('click', onActive(w => w.canGoForward() && w.goForward()));
+  document.getElementById('reload').addEventListener('click', onActive(w => w.reload()));
+  tabs.onChange(t => { if (document.activeElement !== url) url.value = t ? t.url : ''; });
   document.querySelectorAll('.shortcuts a').forEach(a =>
-    a.addEventListener('click', e => { e.preventDefault(); wv.src = a.dataset.url; }));
+    a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.url); }));
+  // target=_blank / Ctrl+click links from pages arrive here (see lib/window-routing.js).
+  window.workspace.onOpenTab(({ url: u, background }) => {
+    if (/^https?:\/\//i.test(u)) tabs.open(u, { background });
+  });
+  tabs.open(HOME);
 
   // ---- notes (encrypted on disk by the main process) ----
   PWNotesUI.createNotesUI({

@@ -48,7 +48,21 @@
   .nav input { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
                color: var(--text); padding: 6px 12px; outline: none; }
   .nav input:focus { border-color: var(--focus); }
-  webview { flex: 1; border: 0; background: #fff; }
+  /* browser tabs */
+  .btabs { display: flex; gap: 2px; align-items: flex-end; padding: 6px 12px 0; background: var(--bar); flex: none; overflow-x: auto; }
+  .btab { display: flex; align-items: center; gap: 6px; max-width: 200px; min-width: 90px; padding: 5px 6px 5px 12px;
+          border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; color: var(--muted); cursor: pointer; font-size: 13px; }
+  .btab:hover { background: var(--chip); }
+  .btab.active { background: var(--bg); border-color: var(--line); color: var(--text); }
+  .btab-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .btab-x { border: 0; background: transparent; color: var(--muted); padding: 0 5px; border-radius: 4px; line-height: 1.4; }
+  .btab-x:hover { background: var(--line); color: var(--text); border: 0; }
+  .btab-add { border: 0; background: transparent; color: var(--muted); padding: 4px 10px; margin-bottom: 2px; }
+  .btab-add:hover { background: var(--chip); border: 0; color: var(--text); }
+  .webviews { flex: 1; position: relative; min-height: 0; background: #fff; }
+  /* Inactive tabs stay laid out (a display:none webview can come back at 0x0). */
+  .webviews webview { position: absolute; inset: 0; border: 0; visibility: hidden; }
+  .webviews webview.active { visibility: visible; z-index: 1; }
   .shortcuts { padding: 10px 12px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
                display: flex; gap: 8px; flex-wrap: wrap; background: var(--bar); flex: none; }
   .shortcuts a { color: var(--accent); text-decoration: none; background: var(--chip); padding: 3px 10px; border-radius: 999px; }
@@ -130,6 +144,7 @@
 
   <!-- Browser -->
   <div class="panel active" id="panel-browser">
+    <div class="btabs" id="browser-tabs" role="tablist"></div>
     <div class="nav">
       <button id="back" title="Back">←</button>
       <button id="fwd" title="Forward">→</button>
@@ -137,7 +152,7 @@
       <input id="url" placeholder="Search or enter address" spellcheck="false">
       <button id="go" class="primary">Go</button>
     </div>
-    <webview id="wv" src="https://duckduckgo.com" partition="persist:private" allowpopups></webview>
+    <div class="webviews" id="webviews"></div>
     <div class="shortcuts">
       <span>Quick open:</span>
       <a href="#" data-url="https://mail.google.com">Gmail</a>
@@ -196,6 +211,7 @@
 <script src="renderer/notes-model.js"></script>
 <script src="renderer/markdown.js"></script>
 <script src="renderer/notes-ui.js"></script>
+<script src="renderer/tabs.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>

@@ -6,10 +6,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const nativeGuard = require('./native-guard');
-const { lockTitle } = require('./lib/window-privacy');
+const { lockTitle, popupOptions: privatePopupOptions } = require('./lib/window-privacy');
 const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
 const notesExport = require('./lib/notes-export');
+const { routeWindowOpen } = require('./lib/window-routing');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -48,27 +49,21 @@ function notifyHost(message) {
   if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', message);
 }
 
-// Options for windows that pages open (window.open, target=_blank): same private
-// session, no Node, sandboxed. They stay inside the workspace instead of the
-// default browser, which would be visible to capture.
-function popupOptions() {
-  return {
-    width: 1000,
-    height: 720,
-    autoHideMenuBar: true,
-    backgroundColor: '#ffffff',
-    webPreferences: {
-      partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false,
-      preload: PAGE_PRELOAD, nodeIntegrationInSubFrames: true,
-    },
-  };
-}
+// Pop-ups stay inside the workspace instead of the default browser, which would be
+// visible to capture.
+const popupOptions = () => privatePopupOptions({ partition: PARTITION, preload: PAGE_PRELOAD });
 
 function guardPageWindows(contents) {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (WEB_URL.test(url) || url === 'about:blank') {
+  contents.setWindowOpenHandler(({ url, disposition }) => {
+    const route = routeWindowOpen({ url, disposition });
+    if (route === 'popup') {
       return { action: 'allow', overrideBrowserWindowOptions: popupOptions() };
     }
+    if (route === 'tab' && mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('workspace-open-tab', { url, background: disposition === 'background-tab' });
+      return { action: 'deny' };
+    }
+    if (route === 'tab') return { action: 'allow', overrideBrowserWindowOptions: popupOptions() };
     // mailto:, whatsapp:, etc. would open another app outside the protected window.
     notifyHost(`Blocked opening "${url.split(':')[0]}:" link — it would open outside the protected workspace.`);
     return { action: 'deny' };

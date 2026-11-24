@@ -19,3 +19,14 @@ test('lockTitle sets the neutral title and blocks page title updates', () => {
   assert.ok(prevented);
   assert.equal(win.title, 'Private Workspace');
 });
+
+test('popupOptions gives page pop-ups the neutral title and a locked-down sandbox', () => {
+  const { popupOptions } = require('../lib/window-privacy');
+  const opts = popupOptions({ partition: 'persist:private', preload: '/x/webview-preload.js' });
+  assert.equal(opts.title, 'Private Workspace');
+  assert.deepEqual(
+    { ...opts.webPreferences },
+    { partition: 'persist:private', preload: '/x/webview-preload.js', sandbox: true,
+      contextIsolation: true, nodeIntegration: false, nodeIntegrationInSubFrames: true },
+  );
+});

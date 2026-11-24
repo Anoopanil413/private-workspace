@@ -26,6 +26,7 @@ If `npm start` says Electron failed to install, run `node node_modules/electron/
 | Downloads | Saved straight to `Downloads\Private Workspace`, no Save dialog | — |
 | Notifications, camera, microphone, location | Denied (notifications would appear outside the window) | — |
 | Exporting / importing notes | Export writes straight to `Downloads\Private Workspace` (no Save dialog): **encrypted** `.pwnotes` (your password, scrypt + AES-256-GCM; opens on any PC) or plain `.txt`. Import uses the app's own Open dialog and adds notes without duplicating ones you have | Unit-tested (`notes-export`) |
+| Links that open a new tab (`target=_blank`, Ctrl+click) | Open as a tab inside the workspace. `window.open()` with a size (sign-in pop-ups) still gets a protected pop-up window, so logins keep working | Unit-tested (`routeWindowOpen`) |
 | Window titles in the taskbar and Alt+Tab | Every window, including pages' pop-ups, keeps the title "Private Workspace" | Unit-tested (`lockTitle`) |
 | Someone walks up / you need it gone now | Panic key **Ctrl+Shift+H** hides every window (also from the taskbar and Alt+Tab), from any app; press again to restore | Unit-tested (`createPanic`) |
 
