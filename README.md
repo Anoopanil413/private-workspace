@@ -25,6 +25,8 @@ If `npm start` says Electron failed to install, run `node node_modules/electron/
 | Links that open another app (`mailto:`, `whatsapp:` …) | Blocked, with a notice | — |
 | Downloads | Saved straight to `Downloads\Private Workspace`, no Save dialog | — |
 | Notifications, camera, microphone, location | Denied (notifications would appear outside the window) | — |
+| Window titles in the taskbar and Alt+Tab | Every window, including pages' pop-ups, keeps the title "Private Workspace" | Unit-tested (`lockTitle`) |
+| Someone walks up / you need it gone now | Panic key **Ctrl+Shift+H** hides every window (also from the taskbar and Alt+Tab), from any app; press again to restore | Unit-tested (`createPanic`) |
 
 ## Limits
 

@@ -25,6 +25,9 @@
   .off .dot { background: var(--danger); box-shadow: 0 0 0 4px #4c1d1d; }
   .off { color: var(--danger); }
   .status .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .hint kbd { font: 11px Consolas, monospace; background: var(--chip); border: 1px solid var(--line);
+              border-radius: 4px; padding: 0 5px; color: var(--text); }
   button { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line);
            border-radius: 8px; padding: 6px 12px; cursor: pointer; }
   button:hover { border-color: var(--focus); }
@@ -66,6 +69,7 @@
   <div class="status" id="shield-wrap">
     <span class="shield on" id="shield"><span class="dot"></span><span id="shield-text">Hidden from screen capture</span></span>
     <span class="spacer"></span>
+    <span class="hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> hides everything</span>
     <button id="toggle">Turn off</button>
   </div>
   <div class="banner" id="banner">

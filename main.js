@@ -1,10 +1,17 @@
 // Private Workspace — windows whose contents are excluded from screen capture.
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
-const { app, BrowserWindow, Menu, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, session } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const nativeGuard = require('./native-guard');
+const { lockTitle } = require('./lib/window-privacy');
+const { createPanic } = require('./lib/panic');
+
+// Global shortcut that hides (and restores) every window of the app, even when
+// another app has focus.
+const PANIC_ACCELERATOR = 'CommandOrControl+Shift+H';
+const panic = createPanic(() => BrowserWindow.getAllWindows());
 
 const PARTITION = 'persist:private';
 const WEB_URL = /^https?:\/\//i;
@@ -26,8 +33,13 @@ const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write'])
 let mainWin;
 let protectedOn = true;
 
-// Every BrowserWindow this app creates (main window, pages' pop-ups) gets protected.
-app.on('browser-window-created', (_e, win) => win.setContentProtection(protectedOn));
+// Every BrowserWindow this app creates (main window, pages' pop-ups) gets protected,
+// and keeps a neutral title so page titles never reach the (captured) taskbar.
+app.on('browser-window-created', (_e, win) => {
+  win.setContentProtection(protectedOn);
+  lockTitle(win);
+  panic.adopt(win); // a pop-up opened while the panic key is active stays hidden
+});
 
 function notifyHost(message) {
   if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', message);
@@ -119,7 +131,9 @@ function createWindow() {
       sandbox: true,
     },
   });
-  mainWin.loadFile(path.join(__dirname, 'index.html'));
+  // `npm run preview` shows the feature-preview mock-ups instead of the workspace.
+  const page = process.argv.includes('--preview') ? 'preview.html' : 'index.html';
+  mainWin.loadFile(path.join(__dirname, page));
   // The host page itself never opens windows.
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -201,10 +215,16 @@ app.whenReady().then(() => {
     mainWin.webContents.once('did-finish-load', () => notifyHost(
       'Warning: pop-up protection failed to start. Dropdowns, dialogs and file pickers may be visible to screen capture.'));
   }
+  if (!globalShortcut.register(PANIC_ACCELERATOR, () => panic.toggle())) {
+    mainWin.webContents.once('did-finish-load', () => notifyHost(
+      'Panic key Ctrl+Shift+H is used by another app, so it is unavailable.'));
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

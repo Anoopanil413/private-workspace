@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:">
+<title>Feature Preview</title>
+<style>
+  :root {
+    --bg: #14141a; --bar: #1c1c24; --line: #2a2a34; --text: #ecebf0; --muted: #9a9aa6;
+    --accent: #6ee7b7; --accent-dim: #134e39; --danger: #f87171; --danger-dim: #4c1d1d;
+    --chip: #24242e; --focus: #818cf8; --warn: #fbbf24; --card: #18181f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, sans-serif; padding-bottom: 80px; }
+  code, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; }
+
+  header.top { padding: 28px 24px 12px; max-width: 1280px; margin: 0 auto; }
+  header.top h1 { margin: 0 0 4px; font-size: 22px; }
+  header.top p { margin: 0; color: var(--muted); max-width: 720px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+  .filters button { font: inherit; font-size: 13px; color: var(--muted); background: var(--chip); border: 1px solid var(--line);
+                    border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .filters button.on { color: var(--text); border-color: var(--focus); }
+
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 16px;
+         padding: 12px 24px; max-width: 1280px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .card.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card[hidden] { display: none; }
+  .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; }
+  .tag { padding: 1px 8px; border-radius: 999px; font-weight: 600; letter-spacing: .02em; }
+  .tag.fix { background: var(--danger-dim); color: #fecaca; }
+  .tag.privacy { background: #312e81; color: #c7d2fe; }
+  .tag.browser { background: #1e3a5f; color: #bae6fd; }
+  .tag.notes { background: #3f2d0f; color: #fde68a; }
+  .tag.project { background: #2a2a34; color: #d4d4d8; }
+  .effort { color: var(--muted); border: 1px solid var(--line); padding: 0 6px; border-radius: 4px; }
+  .rec { color: var(--accent); }
+  .card h3 { margin: 0; font-size: 16px; }
+  .card > p { margin: 0; color: var(--muted); font-size: 13px; }
+  .visual { background: #0f0f14; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; }
+  .pick { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--muted); margin-top: auto; }
+  .pick input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .card.picked .pick { color: var(--accent); }
+
+  /* before / after */
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ba figure { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .ba figcaption { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .ba figure.after figcaption { color: var(--accent); }
+  .bad { color: var(--danger); font-size: 11px; }
+  .good { color: var(--accent); font-size: 11px; }
+
+  /* mini app window */
+  .win { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg); font-size: 11px; }
+  .w-status { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--bar); border-bottom: 1px solid var(--line); }
+  .w-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .w-status.off { color: var(--danger); }
+  .w-status.off .dot { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
+  .w-status .sp { flex: 1; }
+  .btn { display: inline-block; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--text); white-space: nowrap; }
+  .btn.primary { background: var(--accent-dim); border-color: transparent; }
+  .btn.hl { border-color: var(--focus); box-shadow: 0 0 0 2px rgba(129,140,248,.25); }
+  .w-tabs { display: flex; gap: 3px; padding: 5px 8px 0; background: var(--bar); align-items: flex-end; }
+  .w-tab { padding: 3px 10px; border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted);
+           max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+  .w-tab.active { background: var(--bg); color: var(--text); }
+  .w-tab .x { color: var(--muted); }
+  .w-tab.plus { border: none; color: var(--muted); padding: 3px 6px; }
+  .w-nav { display: flex; gap: 4px; padding: 5px 8px; background: var(--bar); border-bottom: 1px solid var(--line); align-items: center; position: relative; }
+  .w-url { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--muted);
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .w-page { background: #f4f4f6; color: #222; min-height: 90px; padding: 10px; position: relative; }
+  .w-page .ln { height: 6px; background: #d4d4d8; border-radius: 3px; margin: 6px 0; }
+  .w-page .ln.s { width: 55%; } .w-page .ln.m { width: 80%; }
+  .w-page .lnk { color: #2563eb; text-decoration: underline; }
+  .progress { position: absolute; left: 0; bottom: -1px; height: 2px; width: 62%; background: var(--accent); }
+  .notice { padding: 5px 8px; background: #1e293b; color: #cbd5e1; position: relative; }
+  .banner { padding: 5px 8px; background: #3b1d1d; color: #fecaca; }
+
+  /* taskbar */
+  .taskbar { display: flex; gap: 4px; align-items: center; background: #202028; border-radius: 6px; padding: 5px; overflow: hidden; }
+  .tb-start { width: 16px; height: 16px; border-radius: 3px; background: #3b82f6; flex: none; }
+  .tb-item { background: #2c2c36; border-radius: 4px; padding: 3px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .tb-item.leak { outline: 1px solid var(--danger); color: #fecaca; }
+
+  /* file list */
+  .files { display: flex; flex-direction: column; gap: 3px; }
+  .file { display: flex; gap: 8px; align-items: center; background: #1a1a22; border-radius: 4px; padding: 4px 8px; }
+  .file .ic { width: 12px; height: 14px; border-radius: 2px; background: #ef4444; flex: none; }
+  .file .t { color: var(--muted); margin-left: auto; }
+  .file.gone { opacity: .45; text-decoration: line-through; }
+
+  .codebox { background: #0b0b0f; border: 1px solid var(--line); border-radius: 6px; padding: 8px; white-space: pre-wrap; word-break: break-all; margin: 0; }
+  .del { color: #fca5a5; } .add { color: #86efac; }
+
+  .keys { display: inline-flex; gap: 3px; align-items: center; }
+  kbd { font: 11px Consolas, monospace; background: #2c2c36; border: 1px solid #3f3f4a; border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--text); }
+  .flow { display: flex; align-items: center; gap: 10px; }
+  .flow > .win, .flow > .desk { flex: 1; }
+  .arrow { color: var(--muted); font-size: 18px; text-align: center; flex: none; }
+  .desk { border: 1px dashed var(--line); border-radius: 8px; min-height: 110px; display: grid; place-items: center; color: var(--muted);
+          background: linear-gradient(135deg, #1b2440, #2a1b3d); text-align: center; padding: 8px; }
+
+  .lock { display: grid; place-items: center; gap: 6px; padding: 16px 8px; background: var(--bg); text-align: center; }
+  .lock .pad { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--accent); display: grid; place-items: center; color: var(--accent); }
+  .dots { display: flex; gap: 6px; } .dots i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--muted); }
+  .dots i.f { background: var(--text); border-color: var(--text); }
+
+  .toggle { display: inline-block; width: 26px; height: 14px; border-radius: 999px; background: #3f3f4a; position: relative; vertical-align: middle; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #ddd; }
+  .toggle.on { background: var(--accent-dim); } .toggle.on::after { left: 14px; background: var(--accent); }
+  .row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; } .row .sp { flex: 1; } .row small { color: var(--muted); }
+
+  .ctx { position: absolute; right: 14px; top: 18px; background: #26262f; color: var(--text); border: 1px solid #3f3f4a; border-radius: 6px;
+         padding: 4px 0; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,.5); font-size: 11px; }
+  .ctx div { padding: 3px 12px; display: flex; justify-content: space-between; gap: 12px; }
+  .ctx div span { color: var(--muted); }
+  .ctx div.hov { background: #3730a3; }
+  .ctx hr { border: 0; border-top: 1px solid #3f3f4a; margin: 3px 0; }
+
+  .findbar { position: absolute; right: 8px; top: 4px; background: var(--bar); border: 1px solid var(--line); border-radius: 6px;
+             display: flex; gap: 6px; align-items: center; padding: 3px 6px; color: var(--text); }
+  .findbar .w-url { min-width: 70px; color: var(--text); }
+  mark { background: #fde047; color: #222; border-radius: 2px; }
+  .klist { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin-top: 10px; align-items: center; }
+  .klist span { color: var(--muted); }
+
+  .errpage { background: #f4f4f6; color: #333; padding: 14px; text-align: center; }
+  .errpage b { display: block; font-size: 13px; margin-bottom: 2px; }
+  .errpage .btn { background: #e4e4e7; color: #222; border-color: #d4d4d8; margin-top: 6px; }
+
+  .chips { display: flex; gap: 5px; flex-wrap: wrap; padding: 6px 8px; background: var(--bar); border-top: 1px solid var(--line); align-items: center; color: var(--muted); }
+  .chips .c { color: var(--accent); background: var(--chip); padding: 1px 8px; border-radius: 999px; display: inline-flex; gap: 6px; }
+  .chips .c i { font-style: normal; color: var(--muted); }
+  .chips .add { border: 1px dashed var(--line); padding: 1px 8px; border-radius: 999px; }
+  .shieldbadge { display: inline-flex; gap: 4px; align-items: center; background: var(--accent-dim); color: var(--accent); border-radius: 6px; padding: 2px 7px; }
+  .shieldbadge.pop { position: absolute; right: 8px; top: 30px; background: var(--bar); color: var(--text); border: 1px solid var(--line);
+                     padding: 8px 10px; flex-direction: column; align-items: flex-start; gap: 2px; z-index: 1; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+
+  .notes3 { display: grid; grid-template-columns: 110px 1fr 1fr; min-height: 140px; }
+  .nlist { background: var(--bar); border-right: 1px solid var(--line); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+  .nlist .srch { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; color: var(--muted); margin-bottom: 4px; }
+  .nlist div.n { padding: 3px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nlist div.n.a { background: var(--chip); }
+  .nlist div.n small { display: block; color: var(--muted); font-size: 10px; }
+  .ned { padding: 8px; border-right: 1px solid var(--line); color: var(--muted); white-space: pre-wrap; font-family: Consolas, monospace; font-size: 11px; }
+  .nprev { padding: 8px; } .nprev h4 { margin: 0 0 4px; font-size: 13px; } .nprev ul { margin: 0; padding-left: 16px; }
+
+  .exe { display: flex; gap: 12px; align-items: center; }
+  .exe .icon { width: 44px; height: 44px; border-radius: 10px; background: linear-gradient(135deg, var(--accent-dim), #312e81);
+               display: grid; place-items: center; font-size: 20px; flex: none; }
+  .term { background: #0b0b0f; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-family: Consolas, monospace; font-size: 11px; line-height: 1.6; }
+  .term .ok { color: var(--accent); } .term .dim { color: var(--muted); }
+  .countdown { height: 2px; background: var(--accent); width: 70%; position: absolute; left: 0; bottom: 0; }
+
+  /* footer selection bar */
+  .selbar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bar); border-top: 1px solid var(--line);
+            display: flex; gap: 12px; align-items: center; padding: 12px 24px; }
+  .selbar .names { color: var(--muted); font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .selbar button { font: inherit; color: var(--text); background: var(--accent-dim); border: 1px solid transparent; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  .selbar button.ghost { background: var(--chip); border-color: var(--line); }
+  .selbar button:disabled { opacity: .5; cursor: default; }
+  @media (max-width: 560px) { .ba { grid-template-columns: 1fr; } .notes3 { grid-template-columns: 90px 1fr; } .nprev { display: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Feature preview</h1>
+  <p>Mock-ups of every proposed addition to Private Workspace. Tick the ones you want, then <b>Copy selection</b> and paste it back to Claude.</p>
+  <div class="filters" id="filters">
+    <button data-f="all" class="on">All</button>
+    <button data-f="rec">Recommended</button>
+    <button data-f="fix">Fixes</button>
+    <button data-f="privacy">Privacy</button>
+    <button data-f="browser">Browser</button>
+    <button data-f="notes">Notes</button>
+    <button data-f="project">Project</button>
+  </div>
+</header>
+
+<main id="cards">
+
+<!-- ===================== FIXES ===================== -->
+<article class="card" data-cat="fix" data-rec data-id="popup-title-leak" data-name="Fix: pop-up title leak">
+  <div class="meta"><span class="tag fix">Fix</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Pop-up windows leak page titles to the taskbar</h3>
+  <p>Windows that pages open (Gmail compose, login pop-ups) show the page title in the taskbar, and the taskbar <b>is</b> captured when you share your screen.</p>
+  <div class="visual ba">
+    <figure><figcaption>Now</figcaption>
+      <div class="taskbar"><span class="tb-start"></span><span class="tb-item">Private Workspace</span><span class="tb-item leak">Inbox (3) – you@gmail.com</span></div>
+      <span class="bad">Visible to everyone in the call</span>
+    </figure>
+    <figure class="after"><figcaption>After</figcaption>
+      <div class="taskbar"><span class="tb-start"></span><span class="tb-item">Private Workspace</span><span class="tb-item">Private Workspace</span></div>
+      <span class="good">Neutral title on every window</span>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="fix" data-rec data-id="download-overwrite" data-name="Fix: downloads overwrite">
+  <div class="meta"><span class="tag fix">Fix</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Downloads with the same name overwrite each other</h3>
+  <p>Downloading two files called <code>invoice.pdf</code> silently replaces the first one.</p>
+  <div class="visual ba">
+    <figure><figcaption>Now: Downloads\Private Workspace</figcaption>
+      <div class="files">
+        <div class="file gone"><span class="ic"></span>invoice.pdf<span class="t">10:02</span></div>
+        <div class="file"><span class="ic"></span>invoice.pdf<span class="t">10:05</span></div>
+      </div>
+      <span class="bad">10:02 file lost</span>
+    </figure>
+    <figure class="after"><figcaption>After</figcaption>
+      <div class="files">
+        <div class="file"><span class="ic"></span>invoice.pdf<span class="t">10:02</span></div>
+        <div class="file"><span class="ic"></span>invoice (1).pdf<span class="t">10:05</span></div>
+      </div>
+      <span class="good">Both kept</span>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="fix" data-rec data-id="encrypt-notes" data-name="Fix: encrypt notes">
+  <div class="meta"><span class="tag fix">Fix</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Encrypt notes on disk</h3>
+  <p>Notes are plain text in <code>%APPDATA%\private-workspace</code>. Any program running as you can read them. Windows DPAPI (via Electron <code>safeStorage</code>) locks them to your Windows account.</p>
+  <div class="visual ba">
+    <figure><figcaption>Now: file on disk</figcaption>
+      <pre class="codebox mono">private-notes:
+"Call landlord re deposit.
+Card ends 4417…"</pre>
+      <span class="bad">Readable by any app</span>
+    </figure>
+    <figure class="after"><figcaption>After</figcaption>
+      <pre class="codebox mono">v10 8f3a9c01e7d4b2…
+a91ff0c3d7e25b68…
+0e4c7b19aa53f2d8…</pre>
+      <span class="good">Only your Windows login can decrypt</span>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="fix" data-id="readme-fix" data-name="Fix: README run steps">
+  <div class="meta"><span class="tag fix">Fix</span><span class="effort">XS</span></div>
+  <h3>Correct the README run steps</h3>
+  <p>The README says <code>cd workspace</code>, but there is no such folder.</p>
+  <div class="visual">
+    <pre class="codebox mono"><span class="del">- cd workspace</span>
+  npm install     # first time only
+  npm start
+<span class="add">+ npm run preview   # this page</span></pre>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<!-- ===================== PRIVACY ===================== -->
+<article class="card" data-cat="privacy" data-rec data-id="panic-key" data-name="Panic key">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Panic key</h3>
+  <p>A global shortcut hides the whole app instantly, including from the taskbar and Alt+Tab. Press it again to bring the app back. It works even when another app has focus.</p>
+  <div class="visual">
+    <div class="flow">
+      <div class="win">
+        <div class="w-status"><span class="dot"></span>Hidden from screen capture</div>
+        <div class="w-page"><div class="ln m"></div><div class="ln s"></div><div class="ln m"></div></div>
+      </div>
+      <div class="arrow"><div class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd></div>→</div>
+      <div class="desk">Window gone<br><small>no taskbar entry · no Alt+Tab</small></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="privacy" data-rec data-id="app-lock" data-name="App lock (PIN + idle lock)">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">M</span><span class="rec">★ Recommended</span></div>
+  <h3>App lock: PIN at launch, auto-lock when idle</h3>
+  <p>Someone at your desk can't open your mail or notes. The app locks after a few idle minutes and hides the page behind the lock.</p>
+  <div class="visual ba">
+    <figure><figcaption>Lock screen</figcaption>
+      <div class="win">
+        <div class="w-status"><span class="dot"></span>Hidden from screen capture</div>
+        <div class="lock">
+          <div class="pad">🔒</div>
+          <div>Enter PIN</div>
+          <div class="dots"><i class="f"></i><i class="f"></i><i></i><i></i></div>
+          <small style="color:var(--muted)">or use Windows Hello</small>
+        </div>
+      </div>
+    </figure>
+    <figure><figcaption>Setting</figcaption>
+      <div class="win">
+        <div class="row"><span>Require PIN</span><span class="sp"></span><span class="toggle on"></span></div>
+        <div class="row"><span>Lock after idle</span><span class="sp"></span><span class="btn">5 min ▾</span></div>
+        <div class="row"><span>Lock when minimised</span><span class="sp"></span><span class="toggle"></span></div>
+      </div>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="privacy" data-id="auto-reenable" data-name="Auto re-enable protection">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">S</span></div>
+  <h3>Protection turns itself back on</h3>
+  <p>If you switch protection off (for example, to share this window on purpose), it switches back on after a set time so you can't forget.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-status off"><span class="dot"></span>Visible to screen capture<span class="sp"></span><span style="color:var(--warn)">Back on in 4:59</span><span class="btn">5 min ▾</span><span class="btn">Turn on</span></div>
+      <div class="banner">Protection is <b>OFF</b>. This window's contents are visible to screenshots and screen sharing.</div>
+      <div class="w-page"><div class="ln m"></div><div class="ln s"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="privacy" data-id="clear-data" data-name="Clear data + private session">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">S</span></div>
+  <h3>Clear browsing data and a private session</h3>
+  <p>One click signs you out everywhere and wipes cookies, cache and history. <b>Private session</b> keeps nothing on disk; everything is gone when you close the app.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-status"><span class="dot"></span>Hidden from screen capture<span class="sp"></span>
+        <span style="display:inline-flex;gap:5px;align-items:center;color:var(--muted)">Private session <span class="toggle on"></span></span>
+        <span class="btn hl">🧹 Clear data</span><span class="btn">Turn off</span></div>
+      <div class="notice">Cleared cookies, cache and history. You are signed out of all sites.</div>
+      <div class="w-page"><div class="ln m"></div><div class="ln s"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="privacy" data-id="clipboard-clear" data-name="Clipboard auto-clear">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">S</span></div>
+  <h3>Clipboard clears itself</h3>
+  <p>Text you copy here can be pasted into a captured app. The clipboard clears 30 seconds after you copy, unless you have copied something else since.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-status"><span class="dot"></span>Hidden from screen capture</div>
+      <div class="notice">📋 Copied. Clipboard clears in 21 s.<span class="countdown"></span></div>
+      <div class="w-page"><div class="ln m"></div><span style="background:#bfdbfe">Account no. 0042 8813 77</span><div class="ln s"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<!-- ===================== BROWSER ===================== -->
+<article class="card" data-cat="browser" data-rec data-id="tabs" data-name="Browser tabs">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">M</span><span class="rec">★ Recommended</span></div>
+  <h3>Multiple browser tabs</h3>
+  <p>The browser has one page today. Tabs let mail, chat and docs stay open side by side, and links that now open pop-up windows open as tabs instead.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-status"><span class="dot"></span>Hidden from screen capture</div>
+      <div class="w-tabs">
+        <span class="w-tab active">✉ Inbox (3)<span class="x">×</span></span>
+        <span class="w-tab">💬 WhatsApp<span class="x">×</span></span>
+        <span class="w-tab">📁 My Drive<span class="x">×</span></span>
+        <span class="w-tab plus">＋</span>
+        <span style="flex:1"></span>
+        <span class="w-tab">📝 Notes</span>
+      </div>
+      <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://mail.google.com/mail/u/0/#inbox</span></div>
+      <div class="w-page"><div class="ln m"></div><div class="ln s"></div><div class="ln m"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-rec data-id="context-menu" data-name="Right-click menu">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Right-click menu</h3>
+  <p>Right-clicking a page does nothing today. The new menu is also hidden from capture, because the app creates it itself.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://example.com/report</span></div>
+      <div class="w-page" style="min-height:170px">
+        <div class="ln m"></div>Read the <span class="lnk">quarterly report</span> here.<div class="ln s"></div><div class="ln m"></div>
+        <div class="ctx">
+          <div>Back <span>Alt+←</span></div><div>Reload <span>Ctrl+R</span></div><hr>
+          <div class="hov">Open link in new tab</div><div>Copy link address</div><hr>
+          <div>Copy <span>Ctrl+C</span></div><div>Paste <span>Ctrl+V</span></div><div>Save image</div><hr>
+          <div>Find on page… <span>Ctrl+F</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-id="shortcuts-find" data-name="Keyboard shortcuts + find">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
+  <h3>Keyboard shortcuts and find on page</h3>
+  <p>The usual browser keys, which currently do nothing.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://example.com/terms</span></div>
+      <div class="w-page" style="padding-top:34px">
+        <div class="findbar"><span class="w-url">invoice</span><span style="color:var(--muted)">2/7</span><span>↑</span><span>↓</span><span>×</span></div>
+        Pay the <mark>invoice</mark> within 30 days. Late <mark style="background:#fb923c">invoice</mark> fees apply.
+      </div>
+    </div>
+    <div class="klist">
+      <span class="keys"><kbd>Ctrl</kbd><kbd>F</kbd></span><span>Find on page</span>
+      <span class="keys"><kbd>Ctrl</kbd><kbd>L</kbd></span><span>Focus address bar</span>
+      <span class="keys"><kbd>Ctrl</kbd><kbd>R</kbd> / <kbd>F5</kbd></span><span>Reload</span>
+      <span class="keys"><kbd>Alt</kbd><kbd>←</kbd> <kbd>→</kbd></span><span>Back / forward</span>
+      <span class="keys"><kbd>Ctrl</kbd><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></span><span>Zoom in / out / reset</span>
+      <span class="keys"><kbd>Ctrl</kbd><kbd>T</kbd> <kbd>W</kbd></span><span>New / close tab (needs Tabs)</span>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-id="loading-error" data-name="Loading bar + error page">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
+  <h3>Loading indicator, page title and error page</h3>
+  <p>Today a slow or failed page just shows white. Add a progress line, a padlock for HTTPS, and a friendly error page with Retry.</p>
+  <div class="visual ba">
+    <figure><figcaption>Loading</figcaption>
+      <div class="win">
+        <div class="w-nav"><span class="btn">×</span><span class="w-url">🔒 drive.google.com</span><span class="progress"></span></div>
+        <div class="w-page"><div class="ln m"></div><div class="ln s"></div></div>
+      </div>
+    </figure>
+    <figure><figcaption>Failed</figcaption>
+      <div class="win">
+        <div class="w-nav"><span class="btn">⟳</span><span class="w-url">intranet.local</span></div>
+        <div class="errpage"><b>Can't reach this site</b><small>ERR_NAME_NOT_RESOLVED</small><br><span class="btn">Try again</span></div>
+      </div>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-id="bookmarks" data-name="Editable bookmarks">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
+  <h3>Editable quick-open bookmarks</h3>
+  <p>The Gmail, Outlook and WhatsApp chips are hard-coded. Add the current page, remove a chip or drag to reorder.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://app.slack.com/client</span><span class="btn hl">☆</span></div>
+      <div class="w-page" style="min-height:50px"><div class="ln m"></div></div>
+      <div class="chips">Quick open:
+        <span class="c">Gmail <i>×</i></span><span class="c">WhatsApp <i>×</i></span><span class="c">Drive <i>×</i></span>
+        <span class="c" style="outline:1px solid var(--accent)">Slack <i>×</i></span><span class="add">＋ Add current page</span>
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-id="adblock" data-name="Ad & tracker blocking">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">M</span></div>
+  <h3>Ad and tracker blocking</h3>
+  <p>Built-in blocking using the EasyList and EasyPrivacy lists. Pages load faster and fewer trackers follow you. Can be switched off per site.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://news-site.com/article</span><span class="shieldbadge">🛡 23</span>
+        <div class="shieldbadge pop"><b>23 blocked on this page</b><span style="color:var(--muted)">17 trackers · 6 ads</span>
+          <span style="display:flex;gap:6px;align-items:center">Block on this site <span class="toggle on"></span></span></div>
+      </div>
+      <div class="w-page" style="min-height:110px"><div class="ln m"></div><div class="ln s"></div><div class="ln m"></div><div class="ln s"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<!-- ===================== NOTES ===================== -->
+<article class="card" data-cat="notes" data-id="multi-notes" data-name="Multiple notes + Markdown">
+  <div class="meta"><span class="tag notes">Notes</span><span class="effort">M</span></div>
+  <h3>Multiple notes with search and Markdown</h3>
+  <p>Replaces the single text box: a list of notes, search, and a live Markdown preview.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-tabs"><span class="w-tab">Browser</span><span class="w-tab active">Notes</span></div>
+      <div class="notes3">
+        <div class="nlist">
+          <div class="srch">🔍 Search</div>
+          <div class="n a">Interview prep<small>2 min ago</small></div>
+          <div class="n">Passwords hint<small>Yesterday</small></div>
+          <div class="n">Shopping<small>Mon</small></div>
+          <div class="n" style="color:var(--accent)">＋ New note</div>
+        </div>
+        <div class="ned"># Interview prep
+- Salary range: **18–22**
+- Ask about remote days
+- Notice period?</div>
+        <div class="nprev"><h4>Interview prep</h4><ul><li>Salary range: <b>18–22</b></li><li>Ask about remote days</li><li>Notice period?</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="notes" data-id="notes-export" data-name="Notes export / import">
+  <div class="meta"><span class="tag notes">Notes</span><span class="effort">S</span></div>
+  <h3>Export and import notes</h3>
+  <p>Back up your notes or move them to another PC. Saving goes straight to the Private Workspace folder, because a Save dialog would be visible to capture.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-page" style="background:var(--bg);color:var(--muted);min-height:60px">Interview prep…</div>
+      <div class="chips" style="justify-content:flex-end">
+        <span class="btn">Import…</span><span class="btn">Export as .txt</span><span class="btn primary">Export encrypted (.pwnotes)</span>
+      </div>
+      <div class="notice">Saved 4 notes to Downloads\Private Workspace\notes-2026-11-24.pwnotes</div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<!-- ===================== PROJECT ===================== -->
+<article class="card" data-cat="project" data-id="installer" data-name="Windows .exe build">
+  <div class="meta"><span class="tag project">Project</span><span class="effort">S</span></div>
+  <h3>Portable .exe, no npm needed</h3>
+  <p>Package the app with electron-builder, so it opens with a double-click or from the Start menu instead of <code>npm start</code>.</p>
+  <div class="visual">
+    <div class="exe">
+      <div class="icon">🛡</div>
+      <div><b>Private Workspace 1.0.0.exe</b><br><small style="color:var(--muted)">Portable · ~90 MB · double-click to run</small></div>
+    </div>
+    <div class="term" style="margin-top:10px"><span class="dim">&gt;</span> npm run dist
+<br><span class="ok">✓</span> built dist\Private Workspace 1.0.0.exe</div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="project" data-id="capture-test" data-name="Automated capture test">
+  <div class="meta"><span class="tag project">Project</span><span class="effort">M</span></div>
+  <h3>Automated "is it really hidden?" test</h3>
+  <p>A test that takes real screen captures and checks that the window, dropdowns and dialogs are missing from them. It catches regressions after an Electron update.</p>
+  <div class="visual">
+    <div class="term"><span class="dim">&gt;</span> npm test
+<br><span class="ok">✓</span> main window absent from capture
+<br><span class="ok">✓</span> &lt;select&gt; dropdown absent from capture
+<br><span class="ok">✓</span> alert() dialog absent from capture
+<br><span class="ok">✓</span> page pop-up window absent from capture
+<br><span class="ok">✓</span> Open file dialog protected
+<br><span class="dim">5 passed (8.4 s)</span></div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="project" data-id="autostart" data-name="Start with Windows + tray">
+  <div class="meta"><span class="tag project">Project</span><span class="effort">S</span></div>
+  <h3>Start with Windows and a tray icon</h3>
+  <p>Optionally start at login, minimised to the tray. Closing the window hides it to the tray instead of quitting the app.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="row"><span>Start with Windows</span><span class="sp"></span><span class="toggle on"></span></div>
+      <div class="row"><span>Start minimised to tray</span><span class="sp"></span><span class="toggle on"></span></div>
+      <div class="row"><span>Close button hides to tray</span><span class="sp"></span><span class="toggle"></span></div>
+    </div>
+    <div class="taskbar" style="margin-top:10px;justify-content:flex-end"><span class="tb-item" style="background:transparent;color:var(--muted)">^</span><span class="tb-item" style="outline:1px solid var(--accent)">🛡</span><span class="tb-item" style="background:transparent">10:42</span></div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+</main>
+
+<div class="selbar">
+  <b id="count">0 selected</b>
+  <span class="names" id="names">Tick “Build this” on the cards you want.</span>
+  <button class="ghost" id="clear">Clear</button>
+  <button id="copy" disabled>Copy selection</button>
+</div>
+
+<script>
+  const KEY = 'feature-preview-picks';
+  const cards = [...document.querySelectorAll('.card')];
+  let picks = new Set();
+  try { picks = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch {}
+
+  function render() {
+    const chosen = cards.filter(c => picks.has(c.dataset.id));
+    cards.forEach(c => {
+      const on = picks.has(c.dataset.id);
+      c.classList.toggle('picked', on);
+      c.querySelector('.pick input').checked = on;
+    });
+    document.getElementById('count').textContent = chosen.length + ' selected';
+    document.getElementById('names').textContent = chosen.length
+      ? chosen.map(c => c.dataset.name).join(' · ')
+      : 'Tick “Build this” on the cards you want.';
+    document.getElementById('copy').disabled = !chosen.length;
+    try { localStorage.setItem(KEY, JSON.stringify([...picks])); } catch {}
+  }
+
+  cards.forEach(c => c.querySelector('.pick input').addEventListener('change', e => {
+    e.target.checked ? picks.add(c.dataset.id) : picks.delete(c.dataset.id);
+    render();
+  }));
+
+  document.getElementById('clear').addEventListener('click', () => { picks.clear(); render(); });
+
+  document.getElementById('copy').addEventListener('click', async (e) => {
+    const text = 'Build these:\n' + cards.filter(c => picks.has(c.dataset.id)).map(c => '- ' + c.dataset.name).join('\n');
+    const btn = e.currentTarget;
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    btn.textContent = 'Copied ✓';
+    setTimeout(() => { btn.textContent = 'Copy selection'; }, 1500);
+  });
+
+  document.querySelectorAll('#filters button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#filters button').forEach(x => x.classList.toggle('on', x === b));
+    const f = b.dataset.f;
+    cards.forEach(c => { c.hidden = !(f === 'all' || (f === 'rec' ? c.hasAttribute('data-rec') : c.dataset.cat === f)); });
+  }));
+
+  render();
+</script>
+</body>
+</html>
