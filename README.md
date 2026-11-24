@@ -35,6 +35,23 @@ The address bar opens sites (`example.com`), local addresses (`localhost:3000`, 
 DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
 editor keeps its own keys.
 
+## Notes formatting
+
+Notes are rich text: formatting shows as you type. Use the toolbar above the note or these keys:
+
+| Keys | Format |
+|---|---|
+| Ctrl+B / Ctrl+I / Ctrl+U | Bold / italic / underline |
+| Ctrl+Shift+X | Strikethrough |
+| Ctrl+Shift+7 / Ctrl+Shift+8 / Ctrl+Shift+9 | Numbered list / bulleted list / checklist (click a box to tick it) |
+| Tab / Shift+Tab | Indent / outdent a list item (Tab types a tab elsewhere) |
+| Ctrl+E | Code |
+| Ctrl+Shift+V | Paste as plain text |
+
+Pasting from web pages, Word or Google Docs keeps bold, italic, underline, strikethrough, lists and headings;
+fonts, colours, images, links and scripts are removed. Notes written in Markdown by older versions are converted
+to formatted notes the first time they open.
+
 ## How it's protected
 
 | What | How | Verified |

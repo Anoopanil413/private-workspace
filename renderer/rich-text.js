@@ -41,9 +41,20 @@
     source.innerHTML = String(html);
     const out = doc.createElement('div');
 
-    (function copy(from, to) {
+    (function copy(from, to, inPre) {
       for (const node of from.childNodes) {
-        if (node.nodeType === 3) { to.append(doc.createTextNode(node.data)); continue; }
+        if (node.nodeType === 3) {
+          // Whitespace with a line break, outside <pre>, is source formatting (pasted
+          // HTML, Word); the editor shows white-space as typed, so it would add blank lines.
+          if (!inPre && /\n/.test(node.data) && !node.data.trim()) {
+            // Between two inline pieces it still separates words: keep one space.
+            const isInline = (n) => n && (n.nodeType === 3 || (n.nodeType === 1 && !BLOCKS.has(n.localName) && n.localName !== 'br'));
+            if (isInline(node.previousSibling) && isInline(node.nextSibling)) to.append(doc.createTextNode(' '));
+            continue;
+          }
+          to.append(doc.createTextNode(node.data));
+          continue;
+        }
         if (node.nodeType !== 1) continue;
         let tag = node.localName;
         if (DROP.has(tag)) continue;
@@ -69,9 +80,9 @@
           target.append(wrap);
           target = wrap;
         }
-        copy(node, target);
+        copy(node, target, inPre || tag === 'pre');
       }
-    })(source.content, out);
+    })(source.content, out, false);
 
     return out.innerHTML;
   }

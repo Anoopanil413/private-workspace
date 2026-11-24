@@ -1,24 +1,21 @@
-// Notes screen: list + search, editor, Markdown preview. Saves the whole NotesData
-// (see lib/notes-store.js) through the encrypted store 400 ms after the last edit.
-// Needs PWNotes (notes-model.js) and PWMarkdown (markdown.js). UMD: window.PWNotesUI.
+// Notes screen: list + search, rich-text editor with a formatting toolbar. Saves the
+// whole NotesData (see lib/notes-store.js) through the encrypted store 400 ms after the
+// last edit. Needs PWNotes, PWRichText, PWRichEditor and PWMarkdown (to upgrade notes
+// written in Markdown by older versions). UMD: window.PWNotesUI.
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.PWNotesUI = api;
 })(typeof self !== 'undefined' ? self : this, function () {
   const LEGACY_KEY = 'private-notes';
-  const PREVIEW_KEY = 'notes-preview';
   const SAVE_DELAY = 400;
 
   function createNotesUI({ root, store, onNotice }) {
     const N = PWNotes;
     const $ = (sel) => root.querySelector(sel);
-    const editor = $('#notes');
-    const preview = $('#notes-preview');
     const list = $('#notes-list');
     const search = $('#notes-search');
     const status = $('#notes-status');
-    const previewBtn = $('#notes-preview-toggle');
     const deleteBtn = $('#notes-delete');
     const newBtn = $('#notes-new');
 
@@ -27,8 +24,18 @@
     let saveTimer = null;
 
     const active = () => data.notes.find((n) => n.id === activeId) || null;
-    const store_ = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
     const read_ = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+    const newNote = () => ({ ...N.createNote(Date.now(), N.makeId), format: 'html' });
+
+    // Notes from older versions are Markdown: convert them to rich text once.
+    const markdownToHtml = (md) => PWRichText.sanitizeHtml(PWMarkdown.renderMarkdown(md));
+    const upgraded = (d) => (d.notes.some((n) => n.format !== 'html') ? PWRichText.toRichNotes(d, markdownToHtml) : null);
+
+    const editor = PWRichEditor.createRichEditor({
+      editor: $('#notes'),
+      toolbar: $('#notes-format'),
+      onChange: onEdit,
+    });
 
     async function saveNow() {
       clearTimeout(saveTimer);
@@ -77,30 +84,15 @@
       }
     }
 
-    function renderPreview() {
-      if (preview.hidden) return;
-      const note = active();
-      // renderMarkdown escapes all text and emits only a fixed set of tags.
-      preview.innerHTML = note ? PWMarkdown.renderMarkdown(note.body) : '';
-    }
-
     function select(id) {
       activeId = id;
       const note = active();
-      editor.value = note ? note.body : '';
+      editor.setHtml(note ? note.body : ''); // sanitized inside setHtml
       renderList();
-      renderPreview();
-    }
-
-    function setPreview(on) {
-      preview.hidden = !on;
-      previewBtn.setAttribute('aria-pressed', String(on));
-      store_(PREVIEW_KEY, on ? '1' : '0');
-      renderPreview();
     }
 
     function addNote() {
-      const note = N.createNote(Date.now(), N.makeId);
+      const note = newNote();
       data = { version: 1, notes: [note, ...data.notes] };
       search.value = '';
       select(note.id);
@@ -108,32 +100,35 @@
       saveNow();
     }
 
-    editor.addEventListener('input', () => {
+    // Every change in the editor (typing, toolbar, shortcuts, paste, ticking a box).
+    function onEdit() {
       if (!active()) {
-        const note = N.createNote(Date.now(), N.makeId);
+        const note = newNote();
         data = { version: 1, notes: [note, ...data.notes] };
         activeId = note.id;
       }
       const now = Date.now();
-      data = { version: 1, notes: data.notes.map((n) => (n.id === activeId ? { ...n, body: editor.value, updated: now } : n)) };
+      const body = editor.getHtml();
+      data = {
+        version: 1,
+        notes: data.notes.map((n) => (n.id === activeId ? { ...n, body, format: 'html', updated: now } : n)),
+      };
       renderList();
-      renderPreview();
       scheduleSave();
-    });
+    }
 
     deleteBtn.addEventListener('click', () => {
       const note = active();
       if (!note) return;
-      if (note.body.trim() && !confirm(`Delete "${N.noteTitle(note)}"? This cannot be undone.`)) return;
+      if (N.noteText(note).trim() && !confirm(`Delete "${N.noteTitle(note)}"? This cannot be undone.`)) return;
       data = { version: 1, notes: data.notes.filter((n) => n.id !== note.id) };
-      if (!data.notes.length) data.notes.push(N.createNote(Date.now(), N.makeId));
+      if (!data.notes.length) data.notes.push(newNote());
       select(N.sortByUpdated(data.notes)[0].id);
       saveNow();
     });
 
     newBtn.addEventListener('click', addNote);
     search.addEventListener('input', renderList);
-    previewBtn.addEventListener('click', () => setPreview(preview.hidden));
     // Best effort: send the pending edit before the window goes away; the main process
     // waits for running saves before quitting.
     window.addEventListener('beforeunload', () => { if (saveTimer) saveNow(); });
@@ -182,6 +177,8 @@
 
     function applyImport(result) {
       data = result.data;
+      const rich = upgraded(data); // imported text files and old exports are Markdown
+      if (rich) { data = rich; saveNow(); }
       select(active() ? activeId : N.sortByUpdated(data.notes)[0].id);
       status.textContent = 'Saved, encrypted · ' + new Date().toLocaleTimeString();
       onNotice(result.added
@@ -240,9 +237,8 @@
     }
 
     async function init() {
-      editor.disabled = true;
+      editor.setEnabled(false);
       status.textContent = 'Opening notes…';
-      setPreview(read_(PREVIEW_KEY) === '1');
       try {
         const loaded = await store.load();
         data = loaded.data;
@@ -258,9 +254,11 @@
         } else {
           status.textContent = 'Saved, encrypted.';
         }
-        if (!data.notes.length) data = { version: 1, notes: [N.createNote(Date.now(), N.makeId)] };
+        const rich = upgraded(data);
+        if (rich) { data = rich; await saveNow(); }
+        if (!data.notes.length) data = { version: 1, notes: [newNote()] };
         select(N.sortByUpdated(data.notes)[0].id);
-        editor.disabled = false;
+        editor.setEnabled(true);
         // Also keep the warning where the user looks for their notes.
         if (loaded.warning) status.textContent = loaded.warning;
       } catch (err) {

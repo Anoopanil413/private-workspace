@@ -86,3 +86,15 @@ test('a <b> whose style says font-weight normal (Google Docs paste wrapper) is n
   assert.equal(clean('<b style="font-weight:normal;" id="docs-internal-guid-1"><p>Para</p></b>'), '<p>Para</p>');
   assert.equal(clean('<strong style="font-weight:400">x</strong>'), 'x');
 });
+
+test('line-break whitespace between blocks (pasted HTML formatting) is dropped; spaces between words are kept', () => {
+  assert.equal(clean('\r\n<p>a</p>\n\n<p>b</p>\r\n'), '<p>a</p><p>b</p>');
+  assert.equal(clean('<ul>\n  <li>a</li>\n  <li>b</li>\n</ul>'), '<ul><li>a</li><li>b</li></ul>');
+  assert.equal(clean('<p><b>a</b> <i>b</i></p>'), '<p><b>a</b> <i>b</i></p>');
+  assert.equal(clean('<pre>x\n\ny</pre>'), '<pre>x\n\ny</pre>');
+  assert.equal(clean('<p>line one\nline two</p>'), '<p>line one\nline two</p>');
+});
+
+test('a line break between two inline words becomes a space, not nothing', () => {
+  assert.equal(clean('<p><b>a</b>\n<i>b</i></p>'), '<p><b>a</b> <i>b</i></p>');
+});
