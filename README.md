@@ -1,0 +1,37 @@
+# Private Workspace
+
+A browser and notes window whose contents are **excluded from screen capture**: screenshots,
+screen sharing and monitoring apps don't see it, while you see it normally.
+In a capture the window is simply absent — whatever is behind it shows instead.
+
+## Run
+
+```
+cd workspace
+npm install     # first time only
+npm start
+```
+
+If `npm start` says Electron failed to install, run `node node_modules/electron/install.js` once.
+
+## How it's protected
+
+| What | How | Verified |
+|---|---|---|
+| Main window and pages' pop-up windows | `setContentProtection(true)` on every window the app creates | Hidden in a capture made with Electron's `desktopCapturer` |
+| `<select>` dropdowns, colour picker, `alert()`/`confirm()` | `native-guard.js` protects every window this process creates, at the moment it's created | Windows reports them protected |
+| File pickers (uploads) | Chromium's picker runs in a helper process that can't be protected, so uploads use the app's own Open dialog instead | Protected; files reach the page normally |
+| `window.print()` | The Windows print dialog belongs to `explorer.exe` and can't be protected, so the page is saved as a PDF to `Downloads\Private Workspace` instead | No dialog opens |
+| Links that open another app (`mailto:`, `whatsapp:` …) | Blocked, with a notice | — |
+| Downloads | Saved straight to `Downloads\Private Workspace`, no Save dialog | — |
+| Notifications, camera, microphone, location | Denied (notifications would appear outside the window) | — |
+
+## Limits
+
+- Only what's **inside this app** is protected. Your other apps (Chrome, VS Code, …) are still captured;
+  Windows doesn't let one app hide another app's windows.
+- Opening a downloaded file or printing a saved PDF happens in other apps, which are captured.
+- Folder uploads and the File System Access pickers (`showOpenFilePicker`) aren't supported, because their
+  dialogs can't be protected. Sites fall back to normal file uploads.
+- Windows-owned UI isn't covered: the emoji panel (Win + .), IME candidate windows, and system prompts.
+- Notes are saved unencrypted in `%APPDATA%\private-workspace`; any program running as you can read that file.

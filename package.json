@@ -1,0 +1,16 @@
+{
+  "name": "private-workspace",
+  "version": "1.0.0",
+  "description": "A screen-capture-proof window for private work. Content inside is hidden from screenshots and screen sharing.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^44.8.0"
+  },
+  "dependencies": {
+    "koffi": "^2.16.3"
+  }
+}

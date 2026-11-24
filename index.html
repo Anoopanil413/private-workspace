@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:">
+
+<title>Private Workspace</title>
+<style>
+  :root {
+    --bg: #14141a; --bar: #1c1c24; --line: #2a2a34; --text: #ecebf0; --muted: #9a9aa6;
+    --accent: #6ee7b7; --accent-dim: #134e39; --danger: #f87171; --chip: #24242e; --focus: #818cf8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text);
+         font: 14px/1.5 "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; }
+
+  /* status strip */
+  .status { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--bar);
+            border-bottom: 1px solid var(--line); flex: none; }
+  .shield { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .shield .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .on  .dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim); }
+  .off .dot { background: var(--danger); box-shadow: 0 0 0 4px #4c1d1d; }
+  .off { color: var(--danger); }
+  .status .spacer { flex: 1; }
+  button { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line);
+           border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--focus); }
+  button.primary { background: var(--accent-dim); border-color: transparent; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 4px; padding: 8px 12px 0; background: var(--bar); flex: none; }
+  .tab { padding: 8px 16px; border: 1px solid var(--line); border-bottom: none;
+         border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); cursor: pointer; }
+  .tab.active { background: var(--bg); color: var(--text); border-color: var(--line); }
+
+  .panel { flex: 1; display: none; min-height: 0; }
+  .panel.active { display: flex; flex-direction: column; }
+
+  /* browser */
+  .nav { display: flex; gap: 6px; padding: 8px 12px; background: var(--bar); border-bottom: 1px solid var(--line); flex: none; }
+  .nav button { padding: 6px 10px; }
+  .nav input { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+               color: var(--text); padding: 6px 12px; outline: none; }
+  .nav input:focus { border-color: var(--focus); }
+  webview { flex: 1; border: 0; background: #fff; }
+  .shortcuts { padding: 10px 12px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
+               display: flex; gap: 8px; flex-wrap: wrap; background: var(--bar); flex: none; }
+  .shortcuts a { color: var(--accent); text-decoration: none; background: var(--chip); padding: 3px 10px; border-radius: 999px; }
+  .shortcuts a:hover { text-decoration: underline; }
+
+  /* notes */
+  #notes { flex: 1; width: 100%; resize: none; border: 0; outline: none; background: var(--bg);
+           color: var(--text); padding: 20px; font: 15px/1.7 "Segoe UI", system-ui, sans-serif; }
+  .notes-foot { padding: 6px 12px; color: var(--muted); font-size: 12px; background: var(--bar); border-top: 1px solid var(--line); flex: none; }
+
+  .banner { padding: 8px 12px; font-size: 13px; background: #3b1d1d; color: #fecaca; display: none; }
+  .banner.show { display: block; }
+  .notice { padding: 8px 12px; font-size: 13px; background: #1e293b; color: #cbd5e1; display: none; }
+  .notice.show { display: block; }
+</style>
+</head>
+<body>
+  <div class="status" id="shield-wrap">
+    <span class="shield on" id="shield"><span class="dot"></span><span id="shield-text">Hidden from screen capture</span></span>
+    <span class="spacer"></span>
+    <button id="toggle">Turn off</button>
+  </div>
+  <div class="banner" id="banner">
+    Protection is <b>OFF</b> — this window's contents are now visible to screenshots and screen sharing.
+  </div>
+
+  <div class="notice" id="notice" role="status"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="browser">Browser</button>
+    <button class="tab" data-panel="notes">Notes</button>
+  </div>
+
+  <!-- Browser -->
+  <div class="panel active" id="panel-browser">
+    <div class="nav">
+      <button id="back" title="Back">←</button>
+      <button id="fwd" title="Forward">→</button>
+      <button id="reload" title="Reload">⟳</button>
+      <input id="url" placeholder="Search or enter address" spellcheck="false">
+      <button id="go" class="primary">Go</button>
+    </div>
+    <webview id="wv" src="https://duckduckgo.com" partition="persist:private" allowpopups></webview>
+    <div class="shortcuts">
+      <span>Quick open:</span>
+      <a href="#" data-url="https://mail.google.com">Gmail</a>
+      <a href="#" data-url="https://outlook.live.com">Outlook</a>
+      <a href="#" data-url="https://web.whatsapp.com">WhatsApp</a>
+      <a href="#" data-url="https://drive.google.com">Drive</a>
+      <a href="#" data-url="https://duckduckgo.com">Search</a>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div class="panel" id="panel-notes">
+    <textarea id="notes" placeholder="Private notes — saved on this device only, and hidden from screen capture."></textarea>
+    <div class="notes-foot" id="notes-status">Saved locally.</div>
+  </div>
+
+<script>
+  // ---- tabs ----
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+    const p = t.dataset.panel;
+    document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x.id === 'panel-' + p));
+  }));
+
+  // ---- protection toggle ----
+  const shield = document.getElementById('shield');
+  const shieldText = document.getElementById('shield-text');
+  const toggleBtn = document.getElementById('toggle');
+  const banner = document.getElementById('banner');
+  function paint(on) {
+    shield.className = 'shield ' + (on ? 'on' : 'off');
+    shieldText.textContent = on ? 'Hidden from screen capture' : 'Visible to screen capture';
+    toggleBtn.textContent = on ? 'Turn off' : 'Turn on';
+    banner.classList.toggle('show', !on);
+  }
+  toggleBtn.addEventListener('click', async () => paint(await window.workspace.toggleProtection()));
+  window.workspace.getProtection().then(paint);
+
+  // ---- notices from the main process (blocked links, downloads) ----
+  const notice = document.getElementById('notice');
+  let noticeTimer;
+  window.workspace.onNotice(msg => {
+    notice.textContent = msg;
+    notice.classList.add('show');
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => notice.classList.remove('show'), 8000);
+  });
+
+  // ---- browser ----
+  const wv = document.getElementById('wv');
+  const url = document.getElementById('url');
+  const toUrl = (s) => {
+    s = s.trim();
+    if (!s) return null;
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(s)) return 'https://' + s;
+    return 'https://duckduckgo.com/?q=' + encodeURIComponent(s);
+  };
+  const navigate = (s) => { const u = toUrl(s); if (u) wv.src = u; };
+  document.getElementById('go').addEventListener('click', () => navigate(url.value));
+  url.addEventListener('keydown', e => { if (e.key === 'Enter') navigate(url.value); });
+  document.getElementById('back').addEventListener('click', () => wv.canGoBack() && wv.goBack());
+  document.getElementById('fwd').addEventListener('click', () => wv.canGoForward() && wv.goForward());
+  document.getElementById('reload').addEventListener('click', () => wv.reload());
+  wv.addEventListener('did-navigate', e => { url.value = e.url; });
+  wv.addEventListener('did-navigate-in-page', e => { url.value = e.url; });
+  document.querySelectorAll('.shortcuts a').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); wv.src = a.dataset.url; }));
+
+  // ---- notes (local only) ----
+  const notes = document.getElementById('notes');
+  const notesStatus = document.getElementById('notes-status');
+  try { notes.value = localStorage.getItem('private-notes') || ''; } catch {}
+  let t;
+  notes.addEventListener('input', () => {
+    notesStatus.textContent = 'Saving…';
+    clearTimeout(t);
+    t = setTimeout(() => {
+      try { localStorage.setItem('private-notes', notes.value); notesStatus.textContent = 'Saved locally · ' + new Date().toLocaleTimeString(); }
+      catch { notesStatus.textContent = 'Could not save.'; }
+    }, 400);
+  });
+</script>
+</body>
+</html>
