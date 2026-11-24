@@ -85,3 +85,35 @@ test('uniqueFile picks "notes (1).pwnotes" when "notes.pwnotes" exists', async (
   fs.writeFileSync(path.join(dir, 'notes.pwnotes'), '');
   assert.equal(await uniqueFile(dir, 'notes', 'pwnotes'), path.join(dir, 'notes (1).pwnotes'));
 });
+
+test('toText turns rich (html) notes into plain text and leaves markdown notes as they are', () => {
+  const rich = {
+    version: 1,
+    notes: [
+      { id: 'h', body: '<h1>Plan</h1><ul data-type="checklist"><li data-checked="true">done</li><li>todo</li></ul><p><b>A</b> &amp; B</p>', updated: 2, format: 'html' },
+      { id: 'm', body: '# Old\n- item', updated: 1 },
+    ],
+  };
+  const text = toText(rich);
+  assert.equal(text, 'Plan\n[x] done\n[ ] todo\nA & B\n\n---\n\n# Old\n- item');
+  assert.ok(!text.includes('<'));
+});
+
+test('textToNotes: .txt files become rich notes as plain lines, .md files stay markdown (converted when opened)', () => {
+  const notes = textToNotes([
+    { name: 'a.txt', text: '# not a heading\n<b>x</b>' },
+    { name: 'b.md', text: '# Heading' },
+  ], 7, () => 'id');
+  assert.deepEqual(notes[0], { id: 'id', body: '<p># not a heading</p><p>&lt;b&gt;x&lt;/b&gt;</p>', updated: 7, format: 'html' });
+  assert.deepEqual(notes[1], { id: 'id', body: '# Heading', updated: 7 });
+});
+
+test('a pwnotes export round-trips format: html', async () => {
+  const rich = { version: 1, notes: [{ id: 'h', body: '<p><u>u</u></p>', updated: 1, format: 'html' }] };
+  assert.deepEqual(await decryptExport(await encryptExport(rich, PASSWORD), PASSWORD), rich);
+});
+
+test('mergeNotes keeps the format of imported notes', () => {
+  const { data: merged } = mergeNotes({ version: 1, notes: [] }, [{ id: 'h', body: '<p>x</p>', updated: 1, format: 'html' }], nextId);
+  assert.equal(merged.notes[0].format, 'html');
+});
