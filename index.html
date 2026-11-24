@@ -66,7 +66,17 @@
   .shortcuts { padding: 10px 12px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line);
                display: flex; gap: 8px; flex-wrap: wrap; background: var(--bar); flex: none; }
   .shortcuts a { color: var(--accent); text-decoration: none; background: var(--chip); padding: 3px 10px; border-radius: 999px; }
+  .shortcuts .chip { display: inline-flex; align-items: center; gap: 2px; background: var(--chip); border-radius: 999px;
+                     padding: 0 4px 0 10px; border: 1px solid transparent; cursor: grab; }
+  .shortcuts .chip a { background: none; padding: 3px 0; }
+  .shortcuts .chip.dragging { opacity: .4; }
+  .shortcuts .chip.drop { border-color: var(--accent); }
+  .shortcuts .chip-x { border: 0; background: transparent; color: var(--muted); padding: 0 5px; border-radius: 999px; font-size: 13px; }
+  .shortcuts .chip-x:hover { color: var(--text); background: var(--line); border: 0; }
+  .shortcuts .chip-hint { font-style: italic; }
   .shortcuts a:hover { text-decoration: underline; }
+  #star[aria-pressed="true"] { color: var(--warn, #fbbf24); }
+  #star:disabled { opacity: .4; cursor: default; }
 
   /* notes */
   .notes-wrap { flex: 1; display: flex; min-height: 0; }
@@ -150,17 +160,11 @@
       <button id="fwd" title="Forward">→</button>
       <button id="reload" title="Reload">⟳</button>
       <input id="url" placeholder="Search or enter address" spellcheck="false">
+      <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
       <button id="go" class="primary">Go</button>
     </div>
     <div class="webviews" id="webviews"></div>
-    <div class="shortcuts">
-      <span>Quick open:</span>
-      <a href="#" data-url="https://mail.google.com">Gmail</a>
-      <a href="#" data-url="https://outlook.live.com">Outlook</a>
-      <a href="#" data-url="https://web.whatsapp.com">WhatsApp</a>
-      <a href="#" data-url="https://drive.google.com">Drive</a>
-      <a href="#" data-url="https://duckduckgo.com">Search</a>
-    </div>
+    <div class="shortcuts" id="bookmarks"></div>
   </div>
 
   <!-- Notes -->
@@ -212,6 +216,7 @@
 <script src="renderer/markdown.js"></script>
 <script src="renderer/notes-ui.js"></script>
 <script src="renderer/tabs.js"></script>
+<script src="renderer/bookmarks.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>

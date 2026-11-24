@@ -62,9 +62,16 @@
   document.getElementById('back').addEventListener('click', onActive(w => w.canGoBack() && w.goBack()));
   document.getElementById('fwd').addEventListener('click', onActive(w => w.canGoForward() && w.goForward()));
   document.getElementById('reload').addEventListener('click', onActive(w => w.reload()));
-  tabs.onChange(t => { if (document.activeElement !== url) url.value = t ? t.url : ''; });
-  document.querySelectorAll('.shortcuts a').forEach(a =>
-    a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.url); }));
+  const bookmarks = PWBookmarks.createBookmarksBar({
+    bar: document.getElementById('bookmarks'),
+    star: document.getElementById('star'),
+    getCurrent: () => { const t = tabs.active(); return t ? { title: t.title, url: t.url } : null; },
+    onOpen: navigate,
+  });
+  tabs.onChange(t => {
+    if (document.activeElement !== url) url.value = t ? t.url : '';
+    bookmarks.refresh();
+  });
   // target=_blank / Ctrl+click links from pages arrive here (see lib/window-routing.js).
   window.workspace.onOpenTab(({ url: u, background }) => {
     if (/^https?:\/\//i.test(u)) tabs.open(u, { background });
