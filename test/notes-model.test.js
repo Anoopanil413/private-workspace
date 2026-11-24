@@ -61,3 +61,10 @@ test('formatWhen gives short relative times', () => {
   assert.equal(formatWhen(new Date(2026, 10, 24, 9, 5).getTime(), now), 'Today');
   assert.equal(formatWhen(new Date(2026, 10, 23, 18, 0).getTime(), now), 'Yesterday');
 });
+
+test('noteTitle and filterNotes use the text of html notes, not the tags', () => {
+  const html = { id: 'h', body: '<h1>Interview <strong>prep</strong></h1><p>salary</p>', updated: 1, format: 'html' };
+  assert.equal(noteTitle(html), 'Interview prep');
+  assert.deepEqual(filterNotes([html], 'strong'), []);
+  assert.deepEqual(filterNotes([html], 'interview prep').map((n) => n.id), ['h']);
+});

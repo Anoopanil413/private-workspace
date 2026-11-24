@@ -14,14 +14,20 @@
     return { version: 1, notes: [{ id: makeIdFn(), body: legacyText, updated: now }] };
   }
 
+  // Rich-text helpers (renderer/rich-text.js): required under Node, global in the page.
+  const richText = () => (typeof module === 'object' && module.exports ? require('./rich-text') : self.PWRichText);
+
+  // What the user reads: the text of rich (html) notes, the raw text of Markdown ones.
+  const noteText = (note) => (note.format === 'html' ? richText().htmlToText(note.body) : note.body);
+
   function noteTitle(note) {
-    const line = note.body.split('\n').find((l) => l.trim()) || '';
+    const line = noteText(note).split('\n').find((l) => l.trim()) || '';
     return line.replace(/^\s*#+\s*/, '').trim().slice(0, 60) || 'Untitled';
   }
 
   function filterNotes(notes, query) {
     const q = query.trim().toLowerCase();
-    return q ? notes.filter((n) => n.body.toLowerCase().includes(q)) : notes.slice();
+    return q ? notes.filter((n) => noteText(n).toLowerCase().includes(q)) : notes.slice();
   }
 
   const sortByUpdated = (notes) => notes.slice().sort((a, b) => b.updated - a.updated);
@@ -40,5 +46,5 @@
     return new Date(ts).toLocaleDateString();
   }
 
-  return { makeId, migrateLegacy, noteTitle, filterNotes, sortByUpdated, createNote, formatWhen };
+  return { makeId, migrateLegacy, noteText, noteTitle, filterNotes, sortByUpdated, createNote, formatWhen };
 });

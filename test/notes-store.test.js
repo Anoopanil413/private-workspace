@@ -112,3 +112,14 @@ test('whenIdle resolves only after pending saves are written', async () => {
   await store.whenIdle();
   assert.ok(fs.existsSync(file));
 });
+
+test('validateNotes keeps format "html" and drops other format values', () => {
+  const clean = validateNotes({ version: 1, notes: [
+    { id: 'a', body: '<p>x</p>', updated: 1, format: 'html' },
+    { id: 'b', body: 'y', updated: 1, format: 'evil' },
+  ] });
+  assert.deepEqual(clean.notes, [
+    { id: 'a', body: '<p>x</p>', updated: 1, format: 'html' },
+    { id: 'b', body: 'y', updated: 1 },
+  ]);
+});
