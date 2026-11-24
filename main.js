@@ -1,10 +1,23 @@
 // Private Workspace — windows whose contents are excluded from screen capture.
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
-const { app, BrowserWindow, Menu, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session } = require('electron');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const nativeGuard = require('./native-guard');
+const { lockTitle, popupOptions: privatePopupOptions } = require('./lib/window-privacy');
+const { createPanic } = require('./lib/panic');
+const { createNotesStore } = require('./lib/notes-store');
+const notesExport = require('./lib/notes-export');
+const { routeWindowOpen } = require('./lib/window-routing');
+const { createAdblock } = require('./lib/adblock');
+const { matchShortcut } = require('./renderer/shortcuts');
+
+// Global shortcut that hides (and restores) every window of the app, even when
+// another app has focus.
+const PANIC_ACCELERATOR = 'CommandOrControl+Shift+H';
+const panic = createPanic(() => BrowserWindow.getAllWindows());
 
 const PARTITION = 'persist:private';
 const WEB_URL = /^https?:\/\//i;
@@ -26,34 +39,34 @@ const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write'])
 let mainWin;
 let protectedOn = true;
 
-// Every BrowserWindow this app creates (main window, pages' pop-ups) gets protected.
-app.on('browser-window-created', (_e, win) => win.setContentProtection(protectedOn));
+// Every BrowserWindow this app creates (main window, pages' pop-ups) gets protected,
+// and keeps a neutral title so page titles never reach the (captured) taskbar.
+app.on('browser-window-created', (_e, win) => {
+  win.setContentProtection(protectedOn);
+  lockTitle(win);
+  panic.adopt(win); // a pop-up opened while the panic key is active stays hidden
+});
 
-function notifyHost(message) {
-  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', message);
+// Sticky notices (warnings) stay until the user dismisses them.
+function notifyHost(message, { sticky = false } = {}) {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', { text: message, sticky });
 }
 
-// Options for windows that pages open (window.open, target=_blank): same private
-// session, no Node, sandboxed. They stay inside the workspace instead of the
-// default browser, which would be visible to capture.
-function popupOptions() {
-  return {
-    width: 1000,
-    height: 720,
-    autoHideMenuBar: true,
-    backgroundColor: '#ffffff',
-    webPreferences: {
-      partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false,
-      preload: PAGE_PRELOAD, nodeIntegrationInSubFrames: true,
-    },
-  };
-}
+// Pop-ups stay inside the workspace instead of the default browser, which would be
+// visible to capture.
+const popupOptions = () => privatePopupOptions({ partition: PARTITION, preload: PAGE_PRELOAD });
 
 function guardPageWindows(contents) {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (WEB_URL.test(url) || url === 'about:blank') {
+  contents.setWindowOpenHandler(({ url, disposition, frameName, postBody }) => {
+    const route = routeWindowOpen({ url, disposition, frameName, postBody });
+    if (route === 'popup') {
       return { action: 'allow', overrideBrowserWindowOptions: popupOptions() };
     }
+    if (route === 'tab' && mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('workspace-open-tab', { url, background: disposition === 'background-tab' });
+      return { action: 'deny' };
+    }
+    if (route === 'tab') return { action: 'allow', overrideBrowserWindowOptions: popupOptions() };
     // mailto:, whatsapp:, etc. would open another app outside the protected window.
     notifyHost(`Blocked opening "${url.split(':')[0]}:" link — it would open outside the protected workspace.`);
     return { action: 'deny' };
@@ -81,8 +94,83 @@ app.on('web-contents-created', (_e, contents) => {
 
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
+    forwardBrowserShortcuts(contents, type);
+    // A new page starts its own blocked-request count.
+    contents.on('did-start-navigation', (details, _url, isInPlace, isMainFrame) => {
+      const mainFrame = details?.isMainFrame ?? isMainFrame;
+      const sameDocument = details?.isSameDocument ?? isInPlace;
+      if (mainFrame && !sameDocument) resetBlocked(contents.id);
+    });
   }
 });
+
+// ---- browser keyboard shortcuts (renderer/shortcuts.js) ----
+// Keys pressed inside a web page never reach the host page, so browser shortcuts are
+// caught here and forwarded. In a page's pop-up window, Ctrl+W closes it and Ctrl+R
+// reloads it; other shortcuts are left to the page.
+function forwardBrowserShortcuts(contents, type) {
+  contents.on('before-input-event', (event, input) => {
+    // The main window's own page is created before mainWin is set, so it can land
+    // here too: its keys are handled by the host page, never by this handler.
+    if (contents === mainWin?.webContents) return;
+    const action = matchShortcut(input);
+    if (!action) return;
+    if (type === 'webview') {
+      event.preventDefault();
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-shortcut', { action });
+      return;
+    }
+    const win = BrowserWindow.fromWebContents(contents);
+    if (action === 'close-tab' && win) { event.preventDefault(); win.close(); }
+    if (action === 'reload') { event.preventDefault(); contents.reload(); }
+    if (action === 'hard-reload') { event.preventDefault(); contents.reloadIgnoringCache(); }
+  });
+}
+
+// ---- ad & tracker blocking (lib/adblock.js) ----
+const adblock = createAdblock({
+  cacheFile: path.join(app.getPath('userData'), 'adblock-engine.bin'),
+  allowFile: path.join(app.getPath('userData'), 'adblock-allow.json'),
+  fetch: (...args) => fetch(...args),
+});
+const blockedCounts = new Map(); // webContents id -> requests blocked on its current page
+const countTimers = new Map();
+
+function sendBlocked(id) {
+  countTimers.delete(id);
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('adblock:count', { webContentsId: id, count: blockedCounts.get(id) || 0 });
+  }
+}
+
+function onBlocked(id) {
+  blockedCounts.set(id, (blockedCounts.get(id) || 0) + 1);
+  if (!countTimers.has(id)) countTimers.set(id, setTimeout(() => sendBlocked(id), 250));
+}
+
+function resetBlocked(id) {
+  blockedCounts.set(id, 0);
+  clearTimeout(countTimers.get(id));
+  sendBlocked(id);
+}
+
+ipcMain.handle('adblock:get-site', (event, host) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return { running: adblock.isRunning(), allowed: adblock.isAllowed(String(host)) };
+});
+
+ipcMain.handle('adblock:set-site', async (event, { host, allowed } = {}) => {
+  if (event.sender !== mainWin?.webContents || typeof host !== 'string' || !host) return null;
+  await adblock.setAllowed(host, !!allowed);
+  return { running: adblock.isRunning(), allowed: adblock.isAllowed(host) };
+});
+
+// Shows a notice once the host page can display it.
+function notifyWhenReady(message) {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  if (mainWin.webContents.isLoading()) mainWin.webContents.once('did-finish-load', () => notifyHost(message));
+  else notifyHost(message);
+}
 
 function setupSession() {
   const ses = session.fromPartition(PARTITION);
@@ -100,6 +188,10 @@ function setupSession() {
         : `Download of ${item.getFilename()} ${state}.`);
     });
   });
+
+  adblock.start(ses, onBlocked).then((running) => {
+    if (!running) notifyWhenReady('Ad blocking is off: the block list could not be downloaded. Pages still load normally.');
+  }, (err) => notifyWhenReady(`Ad blocking is off: ${err.message}`));
 }
 
 function createWindow() {
@@ -119,11 +211,18 @@ function createWindow() {
       sandbox: true,
     },
   });
-  mainWin.loadFile(path.join(__dirname, 'index.html'));
+  // `npm run preview` shows the feature-preview mock-ups instead of the workspace.
+  const page = process.argv.includes('--preview') ? 'preview.html' : 'index.html';
+  mainWin.loadFile(path.join(__dirname, page));
   // The host page itself never opens windows.
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.webContents.on('will-navigate', (e) => e.preventDefault());
   mainWin.on('closed', () => { mainWin = null; });
+  // Mouse side buttons (back / forward) arrive as Windows app commands.
+  mainWin.on('app-command', (_e, command) => {
+    const action = { 'browser-backward': 'back', 'browser-forward': 'forward' }[command];
+    if (action) mainWin.webContents.send('workspace-shortcut', { action });
+  });
 }
 
 ipcMain.handle('toggle-protection', (event) => {
@@ -135,6 +234,106 @@ ipcMain.handle('toggle-protection', (event) => {
 });
 
 ipcMain.handle('get-protection', () => protectedOn);
+
+// Notes: encrypted with Windows DPAPI (safeStorage), only the host page may use them.
+const notesStore = createNotesStore({
+  file: path.join(app.getPath('userData'), 'notes.enc'),
+  cipher: {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (s) => safeStorage.encryptString(s),
+    decrypt: (b) => safeStorage.decryptString(b),
+  },
+});
+
+ipcMain.handle('notes:load', (event) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return notesStore.load();
+});
+
+ipcMain.handle('notes:save', async (event, data) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, error: 'Not allowed' };
+  try {
+    await notesStore.save(data);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Export: written straight to Downloads\Private Workspace (a Save dialog is hosted
+// outside this process and would be visible to capture).
+ipcMain.handle('notes:export', async (event, { kind, password } = {}) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, code: 'NOT_ALLOWED' };
+  if (kind !== 'pwnotes' && kind !== 'txt') return { ok: false, code: 'BAD_KIND' };
+  try {
+    await notesStore.whenIdle();
+    const { data } = await notesStore.load();
+    const bytes = kind === 'pwnotes'
+      ? await notesExport.encryptExport(data, password)
+      : Buffer.from(notesExport.toText(data), 'utf8');
+    const dir = path.join(app.getPath('downloads'), 'Private Workspace');
+    await fs.promises.mkdir(dir, { recursive: true });
+    const file = await notesExport.uniqueFile(dir, `notes-${new Date().toISOString().slice(0, 10)}`, kind);
+    await fs.promises.writeFile(file, bytes);
+    notifyHost(`Exported ${data.notes.length} notes to Downloads\\Private Workspace\\${path.basename(file)}.`
+      + (kind === 'txt' ? ' This file is NOT encrypted, and opening it in another app is visible to capture.' : ''));
+    return { ok: true, file };
+  } catch (err) {
+    return { ok: false, code: err.code || 'FAILED', error: err.message };
+  }
+});
+
+// Import: the Open dialog is shown from this process, so native-guard protects it.
+// Picked files wait here (by token) for the password, for at most 5 minutes.
+const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+const pendingImports = new Map();
+
+ipcMain.handle('notes:pick-import', async (event) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWin, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Notes', extensions: ['pwnotes', 'txt', 'md'] }],
+  });
+  if (canceled || !filePaths.length) return null;
+  const encrypted = filePaths.filter((p) => path.extname(p).toLowerCase() === '.pwnotes');
+  if (encrypted.length && filePaths.length > 1) {
+    notifyHost('Import one .pwnotes file at a time, or only text files.');
+    return null;
+  }
+  const sizes = await Promise.all(filePaths.map(async (p) => (await fs.promises.stat(p)).size));
+  if (sizes.reduce((a, b) => a + b, 0) > MAX_IMPORT_BYTES) {
+    notifyHost('Those files are too large to import (limit 20 MB).');
+    return null;
+  }
+  const files = await Promise.all(filePaths.map(async (p) => ({ name: path.basename(p), bytes: await fs.promises.readFile(p) })));
+  const token = crypto.randomUUID();
+  const kind = encrypted.length ? 'pwnotes' : 'text';
+  pendingImports.set(token, { kind, files });
+  setTimeout(() => pendingImports.delete(token), 5 * 60 * 1000).unref();
+  return { token, kind, name: files.length === 1 ? files[0].name : `${files.length} files` };
+});
+
+ipcMain.handle('notes:import', async (event, { token, password } = {}) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, code: 'NOT_ALLOWED' };
+  const pending = pendingImports.get(token);
+  if (!pending) return { ok: false, code: 'EXPIRED', error: 'Pick the file again.' };
+  try {
+    const incoming = pending.kind === 'pwnotes'
+      ? (await notesExport.decryptExport(pending.files[0].bytes, password)).notes
+      : notesExport.textToNotes(pending.files.map((f) => ({ name: f.name, text: f.bytes.toString('utf8') })),
+        Date.now(), () => crypto.randomUUID());
+    await notesStore.whenIdle();
+    const { data: current } = await notesStore.load();
+    const { data, added } = notesExport.mergeNotes(current, incoming, () => crypto.randomUUID());
+    await notesStore.save(data);
+    pendingImports.delete(token);
+    return { ok: true, data, added };
+  } catch (err) {
+    // Keep the picked file on a wrong password so the user can try again.
+    if (err.code !== 'BAD_PASSWORD') pendingImports.delete(token);
+    return { ok: false, code: err.code || 'FAILED', error: err.message };
+  }
+});
 
 // window.print() -> PDF in Downloads\Private Workspace (the system print dialog is
 // hosted by explorer.exe and would be visible to capture). Rate-limited per page.
@@ -191,7 +390,24 @@ ipcMain.handle('workspace-pick-files', async (event, opts = {}) => {
   })));
 });
 
+// One copy of the app at a time: two copies would each save their own list of notes
+// over the other's. Launching it again brings the running copy back (also after the
+// panic key hid it, when it has no taskbar entry).
+const isFirstInstance = app.requestSingleInstanceLock();
+if (!isFirstInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    panic.reveal();
+    if (!mainWin || mainWin.isDestroyed()) return;
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show();
+    mainWin.focus();
+  });
+}
+
 app.whenReady().then(() => {
+  if (!isFirstInstance) return;
   // No default menu: it only adds shortcuts this app doesn't need (DevTools, reload).
   Menu.setApplicationMenu(null);
   setupSession();
@@ -199,11 +415,28 @@ app.whenReady().then(() => {
   createWindow();
   if (!guarded && process.platform === 'win32') {
     mainWin.webContents.once('did-finish-load', () => notifyHost(
-      'Warning: pop-up protection failed to start. Dropdowns, dialogs and file pickers may be visible to screen capture.'));
+      'Warning: pop-up protection failed to start. Dropdowns, dialogs and file pickers may be visible to screen capture.',
+      { sticky: true }));
+  }
+  if (!globalShortcut.register(PANIC_ACCELERATOR, () => panic.toggle())) {
+    mainWin.webContents.once('did-finish-load', () => notifyHost(
+      'Panic key Ctrl+Shift+H is used by another app, so it is unavailable.'));
   }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
+
+// Don't exit while a notes save is still being written (e.g. the last edit, sent as the
+// window closed).
+let notesSettled = false;
+app.on('will-quit', (e) => {
+  if (notesSettled) return;
+  e.preventDefault();
+  notesSettled = true;
+  notesStore.whenIdle().finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {
