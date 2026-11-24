@@ -21,3 +21,13 @@ test('routeWindowOpen denies links that would open another app', () => {
   assert.equal(routeWindowOpen({ url: 'whatsapp://send?text=hi', disposition: 'new-window' }), 'deny');
   assert.equal(routeWindowOpen({ url: 'file:///C:/Windows/win.ini', disposition: 'foreground-tab' }), 'deny');
 });
+
+test('a form posting to a new window stays a popup so the POST body is kept', () => {
+  assert.equal(routeWindowOpen({ url: 'https://bank.test/sso', disposition: 'foreground-tab', postBody: { data: [] } }), 'popup');
+});
+
+test('window.open into a named window stays a popup; _blank and unnamed go to a tab', () => {
+  assert.equal(routeWindowOpen({ url: 'https://idp.test/auth', disposition: 'foreground-tab', frameName: 'auth' }), 'popup');
+  assert.equal(routeWindowOpen({ url: 'https://example.com', disposition: 'foreground-tab', frameName: '_blank' }), 'tab');
+  assert.equal(routeWindowOpen({ url: 'https://example.com', disposition: 'foreground-tab', frameName: '' }), 'tab');
+});

@@ -46,8 +46,9 @@ app.on('browser-window-created', (_e, win) => {
   panic.adopt(win); // a pop-up opened while the panic key is active stays hidden
 });
 
-function notifyHost(message) {
-  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', message);
+// Sticky notices (warnings) stay until the user dismisses them.
+function notifyHost(message, { sticky = false } = {}) {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-notice', { text: message, sticky });
 }
 
 // Pop-ups stay inside the workspace instead of the default browser, which would be
@@ -55,8 +56,8 @@ function notifyHost(message) {
 const popupOptions = () => privatePopupOptions({ partition: PARTITION, preload: PAGE_PRELOAD });
 
 function guardPageWindows(contents) {
-  contents.setWindowOpenHandler(({ url, disposition }) => {
-    const route = routeWindowOpen({ url, disposition });
+  contents.setWindowOpenHandler(({ url, disposition, frameName, postBody }) => {
+    const route = routeWindowOpen({ url, disposition, frameName, postBody });
     if (route === 'popup') {
       return { action: 'allow', overrideBrowserWindowOptions: popupOptions() };
     }
@@ -359,7 +360,24 @@ ipcMain.handle('workspace-pick-files', async (event, opts = {}) => {
   })));
 });
 
+// One copy of the app at a time: two copies would each save their own list of notes
+// over the other's. Launching it again brings the running copy back (also after the
+// panic key hid it, when it has no taskbar entry).
+const isFirstInstance = app.requestSingleInstanceLock();
+if (!isFirstInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    panic.reveal();
+    if (!mainWin || mainWin.isDestroyed()) return;
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show();
+    mainWin.focus();
+  });
+}
+
 app.whenReady().then(() => {
+  if (!isFirstInstance) return;
   // No default menu: it only adds shortcuts this app doesn't need (DevTools, reload).
   Menu.setApplicationMenu(null);
   setupSession();
@@ -367,7 +385,8 @@ app.whenReady().then(() => {
   createWindow();
   if (!guarded && process.platform === 'win32') {
     mainWin.webContents.once('did-finish-load', () => notifyHost(
-      'Warning: pop-up protection failed to start. Dropdowns, dialogs and file pickers may be visible to screen capture.'));
+      'Warning: pop-up protection failed to start. Dropdowns, dialogs and file pickers may be visible to screen capture.',
+      { sticky: true }));
   }
   if (!globalShortcut.register(PANIC_ACCELERATOR, () => panic.toggle())) {
     mainWin.webContents.once('did-finish-load', () => notifyHost(

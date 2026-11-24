@@ -246,7 +246,7 @@
       try {
         const loaded = await store.load();
         data = loaded.data;
-        if (loaded.warning) onNotice(loaded.warning);
+        if (loaded.warning) onNotice(loaded.warning, { sticky: true });
 
         // Move the old plain-text note into the encrypted store; delete the old copy
         // only once the encrypted save has succeeded.
@@ -261,6 +261,8 @@
         if (!data.notes.length) data = { version: 1, notes: [N.createNote(Date.now(), N.makeId)] };
         select(N.sortByUpdated(data.notes)[0].id);
         editor.disabled = false;
+        // Also keep the warning where the user looks for their notes.
+        if (loaded.warning) status.textContent = loaded.warning;
       } catch (err) {
         status.textContent = 'Could not open notes: ' + err.message;
       }

@@ -38,6 +38,9 @@
   .tag.project { background: #2a2a34; color: #d4d4d8; }
   .effort { color: var(--muted); border: 1px solid var(--line); padding: 0 6px; border-radius: 4px; }
   .rec { color: var(--accent); }
+  .built-tag { background: var(--accent); color: #0b0b0f; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
+  .card[data-built] { border-color: var(--accent-dim); }
+  .built-note { color: var(--accent); }
   .card h3 { margin: 0; font-size: 16px; }
   .card > p { margin: 0; color: var(--muted); font-size: 13px; }
   .visual { background: #0f0f14; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; }
@@ -180,6 +183,8 @@
     <button data-f="browser">Browser</button>
     <button data-f="notes">Notes</button>
     <button data-f="project">Project</button>
+    <button data-f="built">✓ Built</button>
+    <button data-f="todo">Not built yet</button>
   </div>
 </header>
 
@@ -573,15 +578,27 @@ a91ff0c3d7e25b68…
 <script>
   const KEY = 'feature-preview-picks';
   const cards = [...document.querySelectorAll('.card')];
+  // Built on branch feature/workspace-additions (plan: docs/superpowers/plans/2026-11-24-workspace-additions.md).
+  const BUILT = ['popup-title-leak', 'encrypt-notes', 'panic-key', 'tabs', 'bookmarks', 'adblock', 'multi-notes', 'notes-export'];
   let picks = new Set();
   try { picks = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch {}
+  for (const id of BUILT) picks.delete(id);
+  cards.filter(c => BUILT.includes(c.dataset.id)).forEach(c => {
+    c.dataset.built = '';
+    const tag = document.createElement('span');
+    tag.className = 'built-tag';
+    tag.textContent = '✓ Built';
+    c.querySelector('.meta').prepend(tag);
+    c.querySelector('.pick').innerHTML = '<span class="built-note">Built. Try it with <code>npm start</code>.</span>';
+  });
 
   function render() {
     const chosen = cards.filter(c => picks.has(c.dataset.id));
     cards.forEach(c => {
       const on = picks.has(c.dataset.id);
       c.classList.toggle('picked', on);
-      c.querySelector('.pick input').checked = on;
+      const box = c.querySelector('.pick input');
+      if (box) box.checked = on;
     });
     document.getElementById('count').textContent = chosen.length + ' selected';
     document.getElementById('names').textContent = chosen.length
@@ -591,7 +608,7 @@ a91ff0c3d7e25b68…
     try { localStorage.setItem(KEY, JSON.stringify([...picks])); } catch {}
   }
 
-  cards.forEach(c => c.querySelector('.pick input').addEventListener('change', e => {
+  cards.filter(c => c.querySelector('.pick input')).forEach(c => c.querySelector('.pick input').addEventListener('change', e => {
     e.target.checked ? picks.add(c.dataset.id) : picks.delete(c.dataset.id);
     render();
   }));
@@ -613,7 +630,11 @@ a91ff0c3d7e25b68…
   document.querySelectorAll('#filters button').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('#filters button').forEach(x => x.classList.toggle('on', x === b));
     const f = b.dataset.f;
-    cards.forEach(c => { c.hidden = !(f === 'all' || (f === 'rec' ? c.hasAttribute('data-rec') : c.dataset.cat === f)); });
+    const show = (c) => f === 'all'
+      || (f === 'built' && c.hasAttribute('data-built'))
+      || (f === 'todo' && !c.hasAttribute('data-built'))
+      || (f === 'rec' ? c.hasAttribute('data-rec') : c.dataset.cat === f);
+    cards.forEach(c => { c.hidden = !show(c); });
   }));
 
   render();

@@ -70,3 +70,15 @@ test('adopt does nothing while not hidden', () => {
   popup.show();
   assert.equal(popup.visible, true);
 });
+
+test('reveal restores hidden windows and does nothing when not hidden', () => {
+  const win = fakeWindow();
+  const panic = createPanic(() => [win]);
+  panic.reveal();
+  assert.equal(win.visible, true);
+  assert.equal(panic.isHidden(), false);
+  panic.toggle();
+  panic.reveal();
+  assert.equal(win.visible, true);
+  assert.equal(panic.isHidden(), false);
+});

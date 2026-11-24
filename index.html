@@ -138,8 +138,14 @@
 
   .banner { padding: 8px 12px; font-size: 13px; background: #3b1d1d; color: #fecaca; display: none; }
   .banner.show { display: block; }
-  .notice { padding: 8px 12px; font-size: 13px; background: #1e293b; color: #cbd5e1; display: none; }
+  .notice { font-size: 13px; background: #1e293b; color: #cbd5e1; display: none; }
   .notice.show { display: block; }
+  .notice-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px 12px; }
+  .notice-row + .notice-row { border-top: 1px solid #2c3a52; }
+  .notice-row span { flex: 1; }
+  .notice-row.sticky { background: #3b1d1d; color: #fecaca; }
+  .notice-x { border: 0; background: transparent; color: inherit; padding: 0 6px; opacity: .7; }
+  .notice-x:hover { opacity: 1; border: 0; }
 </style>
 </head>
 <body>
@@ -222,6 +228,7 @@
     </dialog>
   </div>
 
+<script src="renderer/notices.js"></script>
 <script src="renderer/notes-model.js"></script>
 <script src="renderer/markdown.js"></script>
 <script src="renderer/notes-ui.js"></script>

@@ -23,14 +23,9 @@
   window.workspace.getProtection().then(paint);
 
   // ---- notices from the main process (blocked links, downloads) ----
-  const notice = document.getElementById('notice');
-  let noticeTimer;
-  function showNotice(msg) {
-    notice.textContent = msg;
-    notice.classList.add('show');
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => notice.classList.remove('show'), 8000);
-  }
+  // Stacked, so one message never hides another; warnings stay until dismissed.
+  const notices = PWNotices.createNotices(document.getElementById('notice'));
+  const showNotice = (text, opts) => notices.show(text, opts);
   window.workspace.onNotice(showNotice);
 
   // ---- browser (tabs) ----
