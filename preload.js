@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('workspace', {
     set: (host, mode, url) => ipcRenderer.invoke('dark:set', { host, mode, url }),
     setDefault: (mode, url) => ipcRenderer.invoke('dark:set-default', { mode, url }),
   },
+  groups: {
+    load: () => ipcRenderer.invoke('groups:load'),
+    save: (data) => ipcRenderer.invoke('groups:save', data),
+  },
   session: {
     load: () => ipcRenderer.invoke('session:load'),
     save: (session) => ipcRenderer.invoke('session:save', session),

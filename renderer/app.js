@@ -377,8 +377,18 @@
       if (item.action === 'close-tab') tabs.close(tab.id);
     });
   }
+  // Saved groups: the 🗂 menu and linked groups (renderer/groups-ui.js).
+  const savedGroups = PWGroupsUI.createSavedGroups({
+    button: byId('groups-btn'),
+    pop: byId('groups-pop'),
+    tabs,
+    store: window.workspace.groups,
+    notify: showNotice,
+  });
   function showGroupMenu(group, x, y) {
     const items = [
+      group.savedId ? { label: 'Saved ✓ · Stop saving', action: 'unsave' } : { label: 'Save group', action: 'save' },
+      { separator: true },
       { label: 'Rename…', action: 'rename' },
       { label: 'Colour', items: G.GROUP_COLORS.map((c) => ({ label: capital(c.name) + (c.name === group.color ? ' ✓' : ''), action: 'color', value: c.name, color: c.hex })) },
       { label: group.collapsed ? 'Expand' : 'Collapse', action: 'toggle' },
@@ -387,6 +397,8 @@
       { label: 'Close group', action: 'close-group' },
     ];
     ctxMenu.show(items, x, y, (item) => {
+      if (item.action === 'save') savedGroups.saveGroup(group.id);
+      if (item.action === 'unsave') savedGroups.stopSaving(group.id);
       if (item.action === 'rename') tabs.startRename(group.id);
       if (item.action === 'color') tabs.updateGroup(group.id, { color: item.value });
       if (item.action === 'toggle') tabs.updateGroup(group.id, { collapsed: !group.collapsed });

@@ -154,6 +154,16 @@
                      padding: 6px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
   .ctx-menu button:hover, .ctx-menu button:focus { background: var(--chip); outline: none; }
   .ctx-arrow { float: right; color: var(--muted); }
+  /* saved tab groups (renderer/groups-ui.js) */
+  .groups-pop { left: 130px; right: auto; min-width: 330px; max-width: 420px; max-height: 70vh; overflow-y: auto; gap: 6px; }
+  .sg-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; }
+  .sg-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .sg-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sg-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sg-info small { color: var(--muted); font-size: 11px; }
+  .sg-row button { padding: 3px 10px; font-size: 12px; }
+  .sg-save-all { margin-top: 6px; align-self: flex-start; font-size: 12px; padding: 4px 10px; }
+  .sg-save-all:disabled { opacity: .5; cursor: default; }
   .ctx-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
   .ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
   .ctx-wrap { position: relative; }
@@ -264,6 +274,8 @@
       <button id="back" title="Back (Alt+Left)">←</button>
       <button id="fwd" title="Forward (Alt+Right)">→</button>
       <button id="reload" title="Reload (Ctrl+R)">⟳</button>
+      <button id="groups-btn" title="Saved tab groups" aria-haspopup="true" aria-expanded="false">🗂</button>
+      <div id="groups-pop" class="ab-pop groups-pop" role="dialog" aria-label="Saved tab groups" hidden></div>
       <input id="url" placeholder="Search or enter address" spellcheck="false">
       <button id="ab-badge" class="ab-badge" aria-haspopup="true" aria-expanded="false">🛡 <span id="ab-count">0</span></button>
       <div id="ab-pop" class="ab-pop" role="dialog" aria-label="Ad blocking" hidden></div>
@@ -367,6 +379,7 @@
 <script src="renderer/shortcuts.js"></script>
 <script src="renderer/tab-groups.js"></script>
 <script src="renderer/session.js"></script>
+<script src="renderer/groups-ui.js"></script>
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
 <script src="renderer/adblock-ui.js"></script>

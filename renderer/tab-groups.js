@@ -38,5 +38,55 @@
     return last === -1 ? order.length : last + 1;
   }
 
-  return { GROUP_COLORS, NAME_MAX, isColor, colorHex, nextColor, nextGroupName, cleanName, insertIndex };
+  // ---- saved groups (groups.enc): { version: 1, groups: [Saved] }
+  // Saved = { id, name, color, tabs: [{ url, title }], updated }
+  const MAX_SAVED = 50;
+  const MAX_TABS = 50;
+  const MAX_TITLE = 200;
+  const MAX_ID = 64;
+  const isWeb = (url) => typeof url === 'string' && /^https?:\/\//i.test(url);
+  const emptySaved = () => ({ version: 1, groups: [] });
+
+  const cleanTabs = (list) => (Array.isArray(list) ? list : [])
+    .filter((t) => t && isWeb(t.url))
+    .slice(0, MAX_TABS)
+    .map((t) => ({ url: t.url, title: typeof t.title === 'string' ? t.title.slice(0, MAX_TITLE) : '' }));
+
+  function validateSaved(x) {
+    if (!x || typeof x !== 'object' || x.version !== 1 || !Array.isArray(x.groups)) return emptySaved();
+    const groups = [];
+    for (const g of x.groups) {
+      if (groups.length >= MAX_SAVED) break;
+      if (!g || typeof g.id !== 'string' || !g.id || g.id.length > MAX_ID) continue;
+      const tabs = cleanTabs(g.tabs);
+      if (!tabs.length) continue;
+      groups.push({
+        id: g.id,
+        name: cleanName(g.name) || 'Group',
+        color: isColor(g.color) ? g.color : 'blue',
+        tabs,
+        updated: Number.isFinite(g.updated) ? g.updated : 0,
+      });
+    }
+    return { version: 1, groups };
+  }
+
+  // The saved copy after its open group changed (live = { name, color, tabs }), or null
+  // when there's nothing to write: no change, or no pages left (never save it empty).
+  function savedUpdateFor(saved, live, now) {
+    const tabs = cleanTabs(live.tabs);
+    if (!tabs.length) return null;
+    const name = cleanName(live.name) || saved.name;
+    const color = isColor(live.color) ? live.color : saved.color;
+    const same = name === saved.name && color === saved.color && tabs.length === saved.tabs.length
+      && tabs.every((t, i) => t.url === saved.tabs[i].url && t.title === saved.tabs[i].title);
+    return same ? null : { ...saved, name, color, tabs, updated: now };
+  }
+
+  const findOpenGroup = (groups, savedId) => (savedId && groups.find((g) => g.savedId === savedId)) || null;
+
+  return {
+    GROUP_COLORS, NAME_MAX, isColor, colorHex, nextColor, nextGroupName, cleanName, insertIndex,
+    MAX_SAVED, validateSaved, emptySaved, savedUpdateFor, findOpenGroup, cleanTabs,
+  };
 });

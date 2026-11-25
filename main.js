@@ -33,6 +33,7 @@ const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
 const { createAdblock } = require('./lib/adblock');
 const { matchShortcut } = require('./renderer/shortcuts');
+const { validateSaved, emptySaved } = require('./renderer/tab-groups');
 
 // Global shortcut that hides (and restores) every window of the app, even when
 // another app has focus.
@@ -364,6 +365,29 @@ ipcMain.handle('session:save', async (event, session) => {
   }
 });
 
+// Saved tab groups, reopened from the 🗂 menu (renderer/tab-groups.js has the rules).
+const groupsStore = createSecureStore({
+  file: path.join(app.getPath('userData'), 'groups.enc'),
+  cipher: dpapi,
+  validate: validateSaved,
+  empty: emptySaved,
+});
+
+ipcMain.handle('groups:load', (event) => {
+  if (event.sender !== mainWin?.webContents) return emptySaved();
+  return groupsStore.load();
+});
+
+ipcMain.handle('groups:save', async (event, data) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false, error: 'Not allowed' };
+  try {
+    await groupsStore.save(data);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('notes:load', (event) => {
   if (event.sender !== mainWin?.webContents) return null;
   return notesStore.load();
@@ -583,7 +607,7 @@ app.on('will-quit', () => globalShortcut.unregisterAll());
 // Pending notes, session and dark-mode saves, waiting at most 5 s (a stuck disk).
 const SAVE_WAIT_MS = 5000;
 function waitForSaves() {
-  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), darkStore?.whenIdle()]);
+  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), groupsStore.whenIdle(), darkStore?.whenIdle()]);
   return Promise.race([saves, new Promise((r) => setTimeout(r, SAVE_WAIT_MS))]);
 }
 

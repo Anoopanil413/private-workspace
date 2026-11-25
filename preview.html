@@ -843,9 +843,10 @@ a91ff0c3d7e25b68…
   const cards = [...document.querySelectorAll('.card')];
   // Built on branch feature/workspace-additions (plans in docs/superpowers/plans/).
   const BUILT = ['popup-title-leak', 'encrypt-notes', 'panic-key', 'tabs', 'bookmarks', 'adblock', 'multi-notes',
-    'notes-export', 'shortcuts-find', 'rich-notes', 'restore-tabs', 'blur-unfocused', 'dark-sites', 'installer'];
+    'notes-export', 'shortcuts-find', 'rich-notes', 'restore-tabs', 'blur-unfocused', 'dark-sites', 'installer',
+    'split-notes', 'clip-to-note', 'tab-groups'];
   // Being built now.
-  const IN_PROGRESS = ['split-notes', 'clip-to-note', 'tab-groups'];
+  const IN_PROGRESS = [];
   let picks = new Set();
   try { picks = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch {}
   for (const id of [...BUILT, ...IN_PROGRESS]) picks.delete(id);

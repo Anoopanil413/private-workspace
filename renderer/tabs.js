@@ -111,7 +111,21 @@
     }
 
     // Puts the strip's elements in tab order, each group's chip before its first tab.
+    // Only elements out of place are moved: moving a chip whose name is being edited
+    // would take the focus away (and end the edit). A layout asked for while one is
+    // running (from that focus change) runs right after it.
+    let laying = false;
+    let again = false;
     function layout() {
+      if (laying) { again = true; return; }
+      laying = true;
+      try {
+        do { again = false; placeAll(); } while (again);
+      } finally {
+        laying = false;
+      }
+    }
+    function placeAll() {
       const els = [];
       let prev = null;
       for (const t of tabs) {
@@ -124,7 +138,12 @@
         els.push(t.el);
       }
       for (const g of groups) paintGroup(g);
-      strip.replaceChildren(...els, addBtn);
+      let at = strip.firstChild;
+      for (const el of [...els, addBtn]) {
+        if (el === at) { at = at.nextSibling; continue; }
+        strip.insertBefore(el, at);
+      }
+      while (at) { const next = at.nextSibling; at.remove(); at = next; }
     }
 
     // lazy: the page only loads when the tab is first shown (restored tabs); until

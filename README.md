@@ -112,6 +112,19 @@ reopens its tabs one by one). A group's tabs always sit together. Ctrl+Tab and C
 collapsed group; opening one of them expands the group. Groups, their names, colours and collapsed state come back
 with your tabs after a restart (stored encrypted with the session).
 
+### Saved groups
+
+To keep a group for later, right-click its chip → **Save group**. Saved groups are listed in **🗂** (next to
+reload). **Open** brings all its tabs back as that group: only the first one loads straight away, the others when
+you click them. If it's already open, **Show** goes to it instead of opening a second copy. **＋ Save open tabs as a
+group** puts every page that isn't in a group yet into a new saved group (type its name).
+
+A saved group stays linked to its open copy: tabs you add, close or navigate, a new name or colour are saved
+automatically a second later. **Close group** keeps the saved copy as it was, so you can close it and reopen it
+later. To stop updating it, right-click the chip → **Saved ✓ · Stop saving** (the saved copy stays in 🗂).
+**🗑** in 🗂 deletes a saved group; its tabs stay open if they are. Up to 50 saved groups of 50 tabs each. They're
+stored encrypted (Windows DPAPI) in `groups.enc`, like your notes and tabs.
+
 ## Notes beside the page
 
 Click **📝** next to the address bar, or press **Ctrl+Shift+N** (also while you're in a web page), to open a
