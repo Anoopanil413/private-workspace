@@ -12,7 +12,11 @@
     "preview": "electron . --preview",
     "test": "node --test \"test/**/*.test.js\"",
     "dist": "electron-builder --win --publish never",
-    "icon": "electron scripts/make-icon.js"
+    "icon": "electron scripts/make-icon.js",
+    "preversion": "npm test",
+    "release:patch": "npm version patch -m \"release: v%s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"release: v%s\" && git push --follow-tags",
+    "release:major": "npm version major -m \"release: v%s\" && git push --follow-tags"
   },
   "build": {
     "appId": "io.github.anoopanil413.privateworkspace",

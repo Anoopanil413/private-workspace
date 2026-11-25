@@ -40,6 +40,27 @@ npm run dist    # -> dist\Private-Workspace-Setup-<version>.exe and dist\latest.
 
 The app icon is `build/icon.png`; `npm run icon` redraws it from the SVG in `scripts/make-icon.js`.
 
+## How to release
+
+From a clean working tree on the branch you release from:
+
+```
+npm run release:patch   # 1.0.0 -> 1.0.1 (fixes)
+npm run release:minor   # 1.0.0 -> 1.1.0 (new features)
+npm run release:major   # 1.0.0 -> 2.0.0 (big changes)
+```
+
+Each one runs the tests, bumps the version in `package.json`, commits it as `release: v<version>`, creates the
+tag `v<version>` and pushes both. The tag starts the **Release** workflow on GitHub Actions
+(`.github/workflows/release.yml`): it checks the tag matches `package.json`, runs the tests, builds the installer
+and publishes it as a GitHub Release with `latest.yml`. Installed apps find it on their next start or within 6
+hours, download it quietly and install it on restart.
+
+A tag that doesn't match `package.json` (for example `v1.2.0` pushed by hand while the version is still 1.1.0)
+fails the workflow and publishes nothing. To redo a failed release, fix the problem, delete the tag
+(`git push --delete origin v1.2.0` and `git tag -d v1.2.0`) and the draft or partial release on GitHub if one
+exists, then tag again.
+
 ## Browser shortcuts
 
 The usual browser keys work, also while you're typing inside a web page:
