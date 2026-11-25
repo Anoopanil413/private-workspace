@@ -46,6 +46,8 @@
     host: document.getElementById('webviews'),
     homeUrl: HOME,
     onNewTab: () => newTab(),
+    onTabMenu: (tab, x, y) => showTabMenu(tab, x, y),
+    onGroupMenu: (group, x, y) => showGroupMenu(group, x, y),
   });
   const isBlank = (u) => !u || u === PWTabs.NEW_TAB_URL;
   const toUrl = PWTabs.addressToUrl;
@@ -137,14 +139,15 @@
     if (isBlank(t.url)) focusUrl(); else t.webview.focus();
   }
 
+  // Tabs hidden in a collapsed group are skipped.
   function switchBy(delta) {
-    const list = tabs.list();
+    const list = tabs.visible();
     const i = list.indexOf(tabs.active());
     if (list.length > 1) tabs.activate(list[PWTabs.cycleIndex(list.length, i, delta)].id);
   }
 
   function switchTo(n) {
-    const list = tabs.list();
+    const list = tabs.visible();
     const i = PWTabs.indexForNumber(list.length, n);
     if (i !== null) tabs.activate(list[i].id);
   }
@@ -265,8 +268,8 @@
   function saveSessionNow() {
     clearTimeout(sessionTimer);
     sessionTimer = null;
-    const { tabs: list, activeIndex } = tabs.snapshot();
-    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex));
+    const { tabs: list, activeIndex, groups } = tabs.snapshot();
+    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex, groups));
   }
   tabs.onListChange(() => {
     if (restoring) return;
@@ -281,8 +284,12 @@
     try { saved = PWSession.validateSession(await window.workspace.session.load()); } catch {}
     if (saved.tabs.length) {
       // Only the active tab loads now; the others load when first clicked.
-      for (const t of saved.tabs) tabs.open(t.url, { background: true, lazy: true, title: t.title });
-      tabs.activate(tabs.list()[saved.active].id);
+      const opened = saved.tabs.map((t) => tabs.open(t.url, { background: true, lazy: true, title: t.title }));
+      saved.groups.forEach((g, i) => {
+        const ids = opened.filter((_, k) => saved.tabs[k].group === i).map((t) => t.id);
+        tabs.createGroup(ids, g);
+      });
+      tabs.activate(opened[saved.active].id);
       const n = saved.tabs.length;
       showNotice(`Restored ${n} tab${n === 1 ? '' : 's'} from last time.`);
     } else {
@@ -351,6 +358,42 @@
     // x, y are already in the window's coordinates (measured), not the page's.
     ctxMenu.show(items, params.x, params.y, (item) => onMenuPick(item, tab, params));
   }, true);
+
+  // ---- tab groups (renderer/tab-groups.js): right-click a tab or a group's chip ----
+  const G = PWTabGroups;
+  const capital = (s) => s[0].toUpperCase() + s.slice(1);
+  function showTabMenu(tab, x, y) {
+    const others = tabs.groups().filter((g) => g.id !== tab.group);
+    const items = [{ label: 'Add to new group', action: 'new-group' }];
+    if (others.length) {
+      items.push({ label: 'Add to group', items: others.map((g) => ({ label: g.name, action: 'to-group', groupId: g.id, color: G.colorHex(g.color) })) });
+    }
+    if (tab.group) items.push({ label: 'Remove from group', action: 'ungroup-tab' });
+    items.push({ separator: true }, { label: 'Close tab', action: 'close-tab' });
+    ctxMenu.show(items, x, y, (item) => {
+      if (item.action === 'new-group') { const g = tabs.createGroup([tab.id]); if (g) tabs.startRename(g.id); }
+      if (item.action === 'to-group') tabs.addToGroup(tab.id, item.groupId);
+      if (item.action === 'ungroup-tab') tabs.ungroupTab(tab.id);
+      if (item.action === 'close-tab') tabs.close(tab.id);
+    });
+  }
+  function showGroupMenu(group, x, y) {
+    const items = [
+      { label: 'Rename…', action: 'rename' },
+      { label: 'Colour', items: G.GROUP_COLORS.map((c) => ({ label: capital(c.name) + (c.name === group.color ? ' ✓' : ''), action: 'color', value: c.name, color: c.hex })) },
+      { label: group.collapsed ? 'Expand' : 'Collapse', action: 'toggle' },
+      { separator: true },
+      { label: 'Ungroup', action: 'ungroup' },
+      { label: 'Close group', action: 'close-group' },
+    ];
+    ctxMenu.show(items, x, y, (item) => {
+      if (item.action === 'rename') tabs.startRename(group.id);
+      if (item.action === 'color') tabs.updateGroup(group.id, { color: item.value });
+      if (item.action === 'toggle') tabs.updateGroup(group.id, { collapsed: !group.collapsed });
+      if (item.action === 'ungroup') tabs.ungroup(group.id);
+      if (item.action === 'close-group') tabs.closeGroup(group.id);
+    });
+  }
 
   // Ctrl+Shift+N: from the Notes screen it goes to the browser with the note beside it.
   function toggleSideNotes() {

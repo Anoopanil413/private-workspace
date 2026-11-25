@@ -64,6 +64,17 @@
   .btab-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .btab-x { border: 0; background: transparent; color: var(--muted); padding: 0 5px; border-radius: 4px; line-height: 1.4; }
   .btab-x:hover { background: var(--line); color: var(--text); border: 0; }
+  .btab[hidden] { display: none; }
+  .btab.in-group { box-shadow: inset 0 2px 0 var(--g); }
+  .bgroup { display: inline-flex; align-items: center; gap: 6px; align-self: center; flex: none; margin: 0 2px 2px; padding: 3px 10px;
+            border-radius: 999px; background: color-mix(in srgb, var(--g) 20%, transparent); color: var(--g);
+            font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; outline: none; }
+  .bgroup:hover, .bgroup:focus-visible { background: color-mix(in srgb, var(--g) 32%, transparent); }
+  .bgroup-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--g); flex: none; }
+  .bgroup-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .bgroup-count:empty { display: none; }
+  .bgroup-input { width: 130px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--focus);
+                  border-radius: 4px; padding: 0 4px; outline: none; }
   .btab-add { border: 0; background: transparent; color: var(--muted); padding: 4px 10px; margin-bottom: 2px; }
   .btab-add:hover { background: var(--chip); border: 0; color: var(--text); }
   .webviews { flex: 1; position: relative; min-height: 0; background: #fff; }
@@ -143,6 +154,7 @@
                      padding: 6px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
   .ctx-menu button:hover, .ctx-menu button:focus { background: var(--chip); outline: none; }
   .ctx-arrow { float: right; color: var(--muted); }
+  .ctx-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
   .ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
   .ctx-wrap { position: relative; }
   .ctx-sub { position: absolute; left: 100%; top: -4px; min-width: 200px; background: var(--bar); border: 1px solid var(--line);
@@ -353,6 +365,7 @@
 <script src="renderer/rich-editor.js"></script>
 <script src="renderer/notes-ui.js"></script>
 <script src="renderer/shortcuts.js"></script>
+<script src="renderer/tab-groups.js"></script>
 <script src="renderer/session.js"></script>
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>

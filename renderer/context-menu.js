@@ -70,6 +70,12 @@
         btn.type = 'button';
         btn.setAttribute('role', 'menuitem');
         btn.textContent = item.label;
+        if (item.color) { // a colour swatch before the label (tab group colours)
+          const dot = doc.createElement('span');
+          dot.className = 'ctx-dot';
+          dot.style.background = item.color;
+          btn.prepend(dot);
+        }
         if (item.items) {
           const wrap = doc.createElement('div');
           wrap.className = 'ctx-wrap';

@@ -96,6 +96,22 @@ The address bar opens sites (`example.com`), local addresses (`localhost:3000`, 
 DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
 editor keeps its own keys.
 
+## Tab groups
+
+Right-click a tab:
+
+- **Add to new group**: you can type the group's name straight away (Enter keeps it, Esc keeps the default
+  `Group N`).
+- **Add to group ▸**: one of the open groups.
+- **Remove from group**.
+
+A group shows as a coloured chip in front of its tabs. Click the chip to collapse the group into the chip
+(it shows how many tabs it has), and click again to expand it. Right-click the chip to **Rename**, change its
+**Colour** (8 colours), **Collapse / Expand**, **Ungroup** (its tabs stay open) or **Close group** (Ctrl+Shift+T
+reopens its tabs one by one). A group's tabs always sit together. Ctrl+Tab and Ctrl+1 … 9 skip the tabs of a
+collapsed group; opening one of them expands the group. Groups, their names, colours and collapsed state come back
+with your tabs after a restart (stored encrypted with the session).
+
 ## Notes beside the page
 
 Click **📝** next to the address bar, or press **Ctrl+Shift+N** (also while you're in a web page), to open a
