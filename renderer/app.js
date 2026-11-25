@@ -28,6 +28,13 @@
   const showNotice = (text, opts) => notices.show(text, opts);
   window.workspace.onNotice(showNotice);
 
+  // ---- blur when another app has focus (renderer/blur.js) ----
+  PWBlur.createBlurGuard({
+    body: document.body,
+    button: document.getElementById('blur-toggle'),
+    onWindowFocus: window.workspace.onWindowFocus,
+  });
+
   // ---- browser (tabs) ----
   const HOME = 'https://duckduckgo.com';
   const url = document.getElementById('url');
@@ -44,7 +51,15 @@
     const u = toUrl(s);
     if (!u) return;
     const tab = tabs.active();
-    if (tab) tab.webview.src = u; else tabs.open(u);
+    if (tab) {
+      tab.webview.src = u;
+      // Record where the tab is going straight away, so closing the app before the
+      // page starts loading still saves it in the session.
+      tab.url = u;
+      tabs.touched();
+    } else {
+      tabs.open(u);
+    }
   };
   // Webview methods throw until the page has attached; ignore clicks that early.
   const onActive = (fn) => () => { const t = tabs.active(); if (t) { try { fn(t.webview); } catch {} } };
@@ -69,6 +84,12 @@
     getCurrent: () => { const t = tabs.active(); return t ? { title: t.title, url: t.url } : null; },
     onOpen: navigate,
   });
+  const darkButton = PWDarkUI.createDarkButton({
+    button: document.getElementById('dark-btn'),
+    pop: document.getElementById('dark-pop'),
+    dark: window.workspace.dark,
+    getActive: () => tabs.active(),
+  });
   const shieldBadge = PWAdblockUI.createAdblockBadge({
     badge: document.getElementById('ab-badge'),
     countEl: document.getElementById('ab-count'),
@@ -80,6 +101,7 @@
     if (document.activeElement !== url) url.value = t && !isBlank(t.url) ? t.url : '';
     bookmarks.refresh();
     shieldBadge.refresh();
+    darkButton.refresh();
     if (t !== findTab) closeFind();
     paintZoom();
   });
@@ -232,12 +254,59 @@
   window.workspace.onOpenTab(({ url: u, background }) => {
     if (/^https?:\/\//i.test(u)) tabs.open(u, { background });
   });
-  tabs.open(HOME);
+  // ---- restore last time's tabs; keep the saved list up to date (renderer/session.js) ----
+  let restoring = true;
+  let sessionTimer = null;
+  function saveSessionNow() {
+    clearTimeout(sessionTimer);
+    sessionTimer = null;
+    const { tabs: list, activeIndex } = tabs.snapshot();
+    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex));
+  }
+  tabs.onListChange(() => {
+    if (restoring) return;
+    clearTimeout(sessionTimer);
+    sessionTimer = setTimeout(saveSessionNow, 1000);
+  });
+  // Closing right after a change: send it now (the main process waits for the write).
+  window.addEventListener('beforeunload', () => { if (sessionTimer) saveSessionNow(); });
+
+  (async () => {
+    let saved = PWSession.emptySession();
+    try { saved = PWSession.validateSession(await window.workspace.session.load()); } catch {}
+    if (saved.tabs.length) {
+      // Only the active tab loads now; the others load when first clicked.
+      for (const t of saved.tabs) tabs.open(t.url, { background: true, lazy: true, title: t.title });
+      tabs.activate(tabs.list()[saved.active].id);
+      const n = saved.tabs.length;
+      showNotice(`Restored ${n} tab${n === 1 ? '' : 's'} from last time.`);
+    } else {
+      tabs.open(HOME);
+    }
+    restoring = false;
+  })();
 
   // ---- notes (encrypted on disk by the main process) ----
-  PWNotesUI.createNotesUI({
+  const notesUI = PWNotesUI.createNotesUI({
     root: document.getElementById('panel-notes'),
     store: window.workspace.notes,
     onNotice: showNotice,
+  });
+
+  // ---- updates (lib/updater.js): a downloaded version installs on quit, or now ----
+  window.workspace.onUpdateReady(({ version }) => {
+    showNotice(`Version ${version} is ready. It installs when you close the app.`, {
+      sticky: true,
+      action: {
+        label: 'Restart now',
+        onClick: async () => {
+          // Save the last note edit and the open tabs before the installer closes the app.
+          await notesUI.flush();
+          saveSessionNow();
+          const started = await window.workspace.installUpdate();
+          if (!started) showNotice('Could not start the update. It will install when you close the app.');
+        },
+      },
+    });
   });
 })();

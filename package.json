@@ -1,20 +1,93 @@
 {
   "name": "private-workspace",
+  "productName": "Private Workspace",
   "version": "1.0.0",
   "description": "A screen-capture-proof window for private work. Content inside is hidden from screenshots and screen sharing.",
+  "author": "Anoopanil413",
+  "homepage": "https://github.com/Anoopanil413/private-workspace",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
     "preview": "electron . --preview",
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "dist": "electron-builder --win --publish never",
+    "icon": "electron scripts/make-icon.js",
+    "preversion": "npm test",
+    "release:patch": "npm version patch -m \"release: v%s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"release: v%s\" && git push --follow-tags",
+    "release:major": "npm version major -m \"release: v%s\" && git push --follow-tags"
+  },
+  "build": {
+    "appId": "io.github.anoopanil413.privateworkspace",
+    "productName": "Private Workspace",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!docs/**",
+      "!test/**",
+      "!scripts/**",
+      "!dist/**",
+      "!build/**",
+      "!.superpowers/**",
+      "!.github/**",
+      "!*.md",
+      "!node_modules/koffi/build/koffi/darwin_arm64/**",
+      "!node_modules/koffi/build/koffi/darwin_x64/**",
+      "!node_modules/koffi/build/koffi/freebsd_arm64/**",
+      "!node_modules/koffi/build/koffi/freebsd_ia32/**",
+      "!node_modules/koffi/build/koffi/freebsd_x64/**",
+      "!node_modules/koffi/build/koffi/linux_arm64/**",
+      "!node_modules/koffi/build/koffi/linux_armhf/**",
+      "!node_modules/koffi/build/koffi/linux_ia32/**",
+      "!node_modules/koffi/build/koffi/linux_loong64/**",
+      "!node_modules/koffi/build/koffi/linux_riscv64d/**",
+      "!node_modules/koffi/build/koffi/linux_x64/**",
+      "!node_modules/koffi/build/koffi/musl_arm64/**",
+      "!node_modules/koffi/build/koffi/musl_x64/**",
+      "!node_modules/koffi/build/koffi/openbsd_ia32/**",
+      "!node_modules/koffi/build/koffi/openbsd_x64/**",
+      "!node_modules/koffi/build/koffi/win32_arm64/**",
+      "!node_modules/koffi/build/koffi/win32_ia32/**"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Private Workspace",
+      "artifactName": "Private-Workspace-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Anoopanil413",
+        "repo": "private-workspace",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^44.8.0",
+    "electron-builder": "26.18.0",
     "jsdom": "31.0.0"
   },
   "dependencies": {
     "@ghostery/adblocker": "2.20.3",
+    "electron-updater": "6.8.11",
     "koffi": "^2.16.3"
   }
 }

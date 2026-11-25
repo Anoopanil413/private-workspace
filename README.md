@@ -15,7 +15,26 @@ passwords and banking pages, private notes, messages.
   it isn't hidden reliably.
 - [Node.js](https://nodejs.org/) 18 or later (includes `npm`).
 
-## Install and run
+## Install
+
+Run `Private-Workspace-Setup-<version>.exe`. It installs for your Windows user only (no admin rights needed) and
+adds Start-menu and desktop shortcuts.
+
+The installer isn't code-signed, so the first time Windows shows **"Windows protected your PC"**: click
+**More info → Run anyway**.
+
+Your notes, tabs and settings live in `%APPDATA%\\private-workspace`, the same folder `npm start` uses, so they
+carry over between the installed app and a development run.
+
+## Updates
+
+The installed app updates itself from this repository's GitHub Releases. It checks when it starts and every 6
+hours, downloads a new version quietly in the background, then shows **"Version X is ready. It installs when you
+close the app."** with a **Restart now** button. Your last note edit and open tabs are saved before it restarts.
+If you're offline, or GitHub can't be reached, nothing is shown and it tries again later. It never installs an
+older version. (Running with `npm start` never checks for updates.)
+
+## Run from source
 
 ```
 git clone https://github.com/Anoopanil413/private-workspace.git
@@ -25,6 +44,35 @@ npm start
 ```
 
 If `npm start` says Electron failed to install, run `node node_modules/electron/install.js` once.
+
+## Build the installer
+
+```
+npm run dist    # -> dist\Private-Workspace-Setup-<version>.exe and dist\latest.yml
+```
+
+The app icon is `build/icon.png`; `npm run icon` redraws it from the SVG in `scripts/make-icon.js`.
+
+## How to release
+
+From a clean working tree on the branch you release from:
+
+```
+npm run release:patch   # 1.0.0 -> 1.0.1 (fixes)
+npm run release:minor   # 1.0.0 -> 1.1.0 (new features)
+npm run release:major   # 1.0.0 -> 2.0.0 (big changes)
+```
+
+Each one runs the tests, bumps the version in `package.json`, commits it as `release: v<version>`, creates the
+tag `v<version>` and pushes both. The tag starts the **Release** workflow on GitHub Actions
+(`.github/workflows/release.yml`): it checks the tag matches `package.json`, runs the tests, builds the installer
+and publishes it as a GitHub Release with `latest.yml`. Installed apps find it on their next start or within 6
+hours, download it quietly and install it on restart.
+
+A tag that doesn't match `package.json` (for example `v1.2.0` pushed by hand while the version is still 1.1.0)
+fails the workflow and publishes nothing. To redo a failed release, fix the problem, delete the tag
+(`git push --delete origin v1.2.0` and `git tag -d v1.2.0`) and the draft or partial release on GitHub if one
+exists, then tag again.
 
 ## Browser shortcuts
 
@@ -117,6 +165,9 @@ file picker, which is also hidden.
 | Downloads | Saved straight to `Downloads\Private Workspace`, no Save dialog | — |
 | Notifications, camera, microphone, location | Denied (notifications would appear outside the window) | — |
 | Exporting / importing notes | Export writes straight to `Downloads\Private Workspace` (no Save dialog): **encrypted** `.pwnotes` (your password, scrypt + AES-256-GCM; opens on any PC) or plain `.txt` (formatting removed; checklists as `[x]` / `[ ]`). Import uses the app's own Open dialog and adds notes without duplicating ones you have: `.pwnotes` keeps all formatting, `.md` files are converted to formatted notes, other text files come in as plain lines | Unit-tested (`notes-export`) |
+| Bright pages lighting up the room | **Dark mode for websites** (🌙 button next to the address bar), per site: *Normal (as Windows)*, *Site's dark theme* (asks the site for its own dark design), or *Force dark* (darkens any page). "Use for all sites" sets the default. Choices are stored encrypted | Unit-tested (`dark-mode`); brightness measured on real pages |
+| People looking at your screen | **Blur when away** (on by default, ◐ button in the top bar): while another app is in front, everything in the workspace, web pages included, is blurred, and it clears when you click back in | Unit-tested (`blur`); blur measured on a real capture |
+| Your open tabs | Saved encrypted (Windows DPAPI) in `session.enc` and reopened on the next start. Only the tab you were on loads straight away; the others load when you click them | Unit-tested (`secure-store`, `session`) |
 | Links that open a new tab (`target=_blank`, Ctrl+click) | Open as a tab inside the workspace. `window.open()` with a size (sign-in pop-ups) still gets a protected pop-up window, so logins keep working | Unit-tested (`routeWindowOpen`) |
 | Ads and trackers | Requests to known ad/tracking servers are blocked (Ghostery's prebuilt EasyList + EasyPrivacy lists, downloaded on first launch and refreshed weekly). The 🛡 badge shows the count; switch it off per site | Unit-tested (`adblock`) |
 | Window titles in the taskbar and Alt+Tab | Every window, including pages' pop-ups, keeps the title "Private Workspace" | Unit-tested (`lockTitle`) |

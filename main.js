@@ -1,7 +1,7 @@
 // Private Workspace — windows whose contents are excluded from screen capture.
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
-const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session, webContents } = require('electron');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +9,26 @@ const nativeGuard = require('./native-guard');
 const { lockTitle, popupOptions: privatePopupOptions } = require('./lib/window-privacy');
 const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
+const { createSecureStore } = require('./lib/secure-store');
+const { validateSession, emptySession } = require('./renderer/session');
+const {
+  validateDarkPrefs, darkModeFor, cdpCommandsFor, setSiteMode, setDefaultMode, emptyDarkPrefs, hostOf: darkHostOf,
+} = require('./lib/dark-mode');
+const { userDataToUse } = require('./lib/paths');
+const { createUpdater } = require('./lib/updater');
+
+// Keep the data in %APPDATA%\private-workspace (see lib/paths.js), before anything
+// reads it: notes, tabs, settings and the single-instance lock.
+{
+  const current = app.getPath('userData');
+  const folder = userDataToUse({ current, appData: app.getPath('appData'), appName: app.getName() });
+  if (folder) {
+    app.setPath('userData', folder);
+    // Electron creates the display-name folder before this code runs; remove it again
+    // if it's still empty (rmdir refuses non-empty folders, so nothing can be lost).
+    try { fs.rmdirSync(current); } catch { /* not empty, or already gone */ }
+  }
+}
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
 const { createAdblock } = require('./lib/adblock');
@@ -95,6 +115,11 @@ app.on('web-contents-created', (_e, contents) => {
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
     forwardBrowserShortcuts(contents, type);
+    // Dark mode for websites: each new page gets its site's setting.
+    contents.on('did-start-navigation', (details, url, isInPlace, isMainFrame) => {
+      if ((details?.isMainFrame ?? isMainFrame) && !(details?.isSameDocument ?? isInPlace)) applyDark(contents, details?.url ?? url);
+    });
+    contents.on('dom-ready', () => applyDark(contents, contents.getURL()));
     // A new page starts its own blocked-request count.
     contents.on('did-start-navigation', (details, _url, isInPlace, isMainFrame) => {
       const mainFrame = details?.isMainFrame ?? isMainFrame;
@@ -154,6 +179,62 @@ function resetBlocked(id) {
   sendBlocked(id);
 }
 
+// ---- dark mode for websites (lib/dark-mode.js) ----
+// Choices are per site and reveal browsing, so they're stored encrypted.
+let darkPrefs = emptyDarkPrefs();
+let darkStore = null; // created once the app is ready (safeStorage needs that)
+
+// Send the DevTools-protocol commands for this page's mode. Fails quietly if another
+// debugger is attached or the page is gone.
+async function applyDark(contents, url) {
+  if (!contents || contents.isDestroyed()) return;
+  try {
+    const dbg = contents.debugger;
+    if (!dbg.isAttached()) dbg.attach('1.3');
+    for (const [method, params] of cdpCommandsFor(darkModeFor(darkPrefs, url))) await dbg.sendCommand(method, params);
+  } catch { /* leave this page as it is */ }
+}
+
+// Pages that dark mode applies to: tabs and the pop-up windows pages open.
+function darkTargets() {
+  return webContents.getAllWebContents().filter((wc) => !wc.isDestroyed()
+    && (wc.getType() === 'webview' || (wc.getType() === 'window' && wc !== mainWin?.webContents)));
+}
+const applyDarkAll = () => darkTargets().forEach((wc) => applyDark(wc, wc.getURL()));
+
+function darkState(url) {
+  const host = darkHostOf(url);
+  return {
+    host,
+    mode: darkModeFor(darkPrefs, url),
+    siteMode: host ? darkPrefs.sites[host] || null : null,
+    defaultMode: darkPrefs.default,
+  };
+}
+
+async function updateDark(next) {
+  darkPrefs = next;
+  applyDarkAll();
+  try { await darkStore?.save(darkPrefs); } catch { /* still applied for this session */ }
+}
+
+ipcMain.handle('dark:get', (event, url) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return darkState(String(url));
+});
+
+ipcMain.handle('dark:set', async (event, { host, mode, url } = {}) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  await updateDark(setSiteMode(darkPrefs, String(host), mode));
+  return darkState(String(url));
+});
+
+ipcMain.handle('dark:set-default', async (event, { mode, url } = {}) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  await updateDark(setDefaultMode(darkPrefs, mode));
+  return darkState(String(url));
+});
+
 ipcMain.handle('adblock:get-site', (event, host) => {
   if (event.sender !== mainWin?.webContents) return null;
   return { running: adblock.isRunning(), allowed: adblock.isAllowed(String(host)) };
@@ -189,6 +270,14 @@ function setupSession() {
     });
   });
 
+  darkStore = createSecureStore({
+    file: path.join(app.getPath('userData'), 'dark-sites.enc'),
+    cipher: dpapi,
+    validate: validateDarkPrefs,
+    empty: emptyDarkPrefs,
+  });
+  darkStore.load().then((prefs) => { darkPrefs = prefs; applyDarkAll(); });
+
   adblock.start(ses, onBlocked).then((running) => {
     if (!running) notifyWhenReady('Ad blocking is off: the block list could not be downloaded. Pages still load normally.');
   }, (err) => notifyWhenReady(`Ad blocking is off: ${err.message}`));
@@ -218,6 +307,13 @@ function createWindow() {
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.webContents.on('will-navigate', (e) => e.preventDefault());
   mainWin.on('closed', () => { mainWin = null; });
+  // Blur when away (renderer/blur.js): tell the page whether the window has focus.
+  const sendFocus = () => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-focus', { focused: mainWin.isFocused() });
+  };
+  mainWin.on('blur', sendFocus);
+  mainWin.on('focus', sendFocus);
+  mainWin.webContents.on('did-finish-load', sendFocus);
   // Mouse side buttons (back / forward) arrive as Windows app commands.
   mainWin.on('app-command', (_e, command) => {
     const action = { 'browser-backward': 'back', 'browser-forward': 'forward' }[command];
@@ -235,14 +331,37 @@ ipcMain.handle('toggle-protection', (event) => {
 
 ipcMain.handle('get-protection', () => protectedOn);
 
-// Notes: encrypted with Windows DPAPI (safeStorage), only the host page may use them.
-const notesStore = createNotesStore({
-  file: path.join(app.getPath('userData'), 'notes.enc'),
-  cipher: {
-    isAvailable: () => safeStorage.isEncryptionAvailable(),
-    encrypt: (s) => safeStorage.encryptString(s),
-    decrypt: (b) => safeStorage.decryptString(b),
-  },
+// Windows DPAPI (safeStorage) for everything saved that is private.
+const dpapi = {
+  isAvailable: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (s) => safeStorage.encryptString(s),
+  decrypt: (b) => safeStorage.decryptString(b),
+};
+
+// Notes: encrypted, only the host page may use them.
+const notesStore = createNotesStore({ file: path.join(app.getPath('userData'), 'notes.enc'), cipher: dpapi });
+
+// Open tabs, restored on the next start (renderer/session.js has the rules).
+const sessionStore = createSecureStore({
+  file: path.join(app.getPath('userData'), 'session.enc'),
+  cipher: dpapi,
+  validate: validateSession,
+  empty: emptySession,
+});
+
+ipcMain.handle('session:load', (event) => {
+  if (event.sender !== mainWin?.webContents) return emptySession();
+  return sessionStore.load();
+});
+
+ipcMain.handle('session:save', async (event, session) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false };
+  try {
+    await sessionStore.save(session);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 });
 
 ipcMain.handle('notes:load', (event) => {
@@ -425,18 +544,59 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  startUpdater();
+});
+
+// ---- auto-update (lib/updater.js) ----
+// The installed app updates from GitHub Releases. PW_UPDATE_TEST_FEED lets a
+// development run try it against a local feed; the installed app ignores it.
+let updater = null;
+let readyVersion = null;
+function startUpdater() {
+  const { autoUpdater } = require('electron-updater');
+  updater = createUpdater({
+    autoUpdater,
+    isPackaged: app.isPackaged,
+    testFeedUrl: process.env.PW_UPDATE_TEST_FEED || null,
+    log: (msg) => console.log(`[updater] ${msg}`),
+    onReady: (version) => { readyVersion = version; sendUpdateReady(); },
+  });
+  updater.start();
+  // Tell the page again after it reloads.
+  mainWin?.webContents.on('did-finish-load', () => { if (readyVersion) sendUpdateReady(); });
+}
+function sendUpdateReady() {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('update:ready', { version: readyVersion });
+}
+
+// "Restart now": the installer closes this app, so everything is saved first. The page
+// has already sent its pending note and tab changes before asking.
+ipcMain.handle('update:install', async (event) => {
+  if (event.sender !== mainWin?.webContents || !updater || !readyVersion) return false;
+  await waitForSaves();
+  updater.install();
+  return true;
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-// Don't exit while a notes save is still being written (e.g. the last edit, sent as the
-// window closed).
-let notesSettled = false;
+// Pending notes, session and dark-mode saves, waiting at most 5 s (a stuck disk).
+const SAVE_WAIT_MS = 5000;
+function waitForSaves() {
+  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), darkStore?.whenIdle()]);
+  return Promise.race([saves, new Promise((r) => setTimeout(r, SAVE_WAIT_MS))]);
+}
+
+// Don't exit while a save is still being written (e.g. the last edit, sent as the window
+// closed). Then exit directly: calling app.quit() again from here can be ignored while
+// the first quit is still in progress, which left the process running with no window
+// (and the single-instance lock then stopped the app from opening again).
+let savesSettled = false;
 app.on('will-quit', (e) => {
-  if (notesSettled) return;
+  if (savesSettled) return;
   e.preventDefault();
-  notesSettled = true;
-  notesStore.whenIdle().finally(() => app.quit());
+  savesSettled = true;
+  waitForSaves().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => {

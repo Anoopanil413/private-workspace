@@ -32,3 +32,11 @@ test('removeNotice removes by id', () => {
   const list = addNotice(addNotice([], { text: 'A' }, () => 'a'), { text: 'B' }, () => 'b');
   assert.deepEqual(removeNotice(list, 'a').map((x) => x.text), ['B']);
 });
+
+test('a notice can carry an action (a button) and keeps it', () => {
+  const onClick = () => {};
+  const list = addNotice([], { text: 'Version 1.2.0 is ready.', sticky: true, action: { label: 'Restart now', onClick } }, () => 'u');
+  assert.equal(list[0].action.label, 'Restart now');
+  assert.equal(list[0].action.onClick, onClick);
+  assert.equal(addNotice([], { text: 'plain' }, () => 'p')[0].action, null);
+});

@@ -26,6 +26,13 @@
   .off { color: var(--danger); }
   .status .spacer { flex: 1; }
   .hint { color: var(--muted); font-size: 12px; }
+  .blur-toggle { font-size: 12px; padding: 4px 10px; color: var(--muted); }
+  .blur-toggle[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-dim); }
+  /* Blur when away: everything but the status strip, web pages included. */
+  body.privacy-blur > *:not(.status):not(script) { filter: blur(14px); pointer-events: none; user-select: none; }
+  body.privacy-blur::after { content: "Hidden while you're in another app"; position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%); background: var(--bar); color: var(--text); border: 1px solid var(--line);
+    padding: 10px 18px; border-radius: 10px; font-size: 14px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
   .hint kbd { font: 11px Consolas, monospace; background: var(--chip); border: 1px solid var(--line);
               border-radius: 4px; padding: 0 5px; color: var(--text); }
   button { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line);
@@ -95,6 +102,16 @@
   .ab-pop .ab-sub { color: var(--muted); }
   .ab-pop .ab-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; }
   .ab-pop .ab-toggle input { accent-color: var(--accent); }
+  .dark-btn { filter: grayscale(1); opacity: .7; }
+  .dark-btn[aria-pressed="true"] { filter: none; opacity: 1; border-color: var(--focus); }
+  .dark-pop { right: 100px; min-width: 300px; }
+  .dark-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
+  .dark-opt:hover { background: var(--chip); }
+  .dark-opt input { accent-color: var(--accent); margin-top: 3px; }
+  .dark-opt span { display: flex; flex-direction: column; }
+  .dark-opt small { color: var(--muted); font-size: 11px; }
+  .dark-foot { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; color: var(--muted); font-size: 12px; }
+  .dark-foot button { align-self: flex-start; font-size: 12px; padding: 3px 10px; }
 
   /* notes */
   .notes-wrap { flex: 1; display: flex; min-height: 0; }
@@ -170,6 +187,7 @@
   .notice-row.sticky { background: #3b1d1d; color: #fecaca; }
   .notice-x { border: 0; background: transparent; color: inherit; padding: 0 6px; opacity: .7; }
   .notice-x:hover { opacity: 1; border: 0; }
+  .notice-action { flex: none; font-size: 12px; padding: 2px 12px; background: var(--accent-dim); border-color: transparent; color: var(--text); }
 </style>
 </head>
 <body>
@@ -177,6 +195,7 @@
     <span class="shield on" id="shield"><span class="dot"></span><span id="shield-text">Hidden from screen capture</span></span>
     <span class="spacer"></span>
     <span class="hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> hides everything</span>
+    <button id="blur-toggle" class="blur-toggle" aria-pressed="true">◐ Blur when away</button>
     <button id="toggle">Turn off</button>
   </div>
   <div class="banner" id="banner">
@@ -201,6 +220,8 @@
       <button id="ab-badge" class="ab-badge" aria-haspopup="true" aria-expanded="false">🛡 <span id="ab-count">0</span></button>
       <div id="ab-pop" class="ab-pop" role="dialog" aria-label="Ad blocking" hidden></div>
       <button id="zoom-badge" title="Reset zoom (Ctrl+0)" hidden>100%</button>
+      <button id="dark-btn" class="dark-btn" aria-haspopup="true" aria-expanded="false" aria-pressed="false" title="Dark mode for websites">🌙</button>
+      <div id="dark-pop" class="ab-pop dark-pop" role="dialog" aria-label="Dark mode for websites" hidden></div>
       <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
       <button id="go" class="primary">Go</button>
     </div>
@@ -280,9 +301,12 @@
 <script src="renderer/rich-editor.js"></script>
 <script src="renderer/notes-ui.js"></script>
 <script src="renderer/shortcuts.js"></script>
+<script src="renderer/session.js"></script>
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
 <script src="renderer/adblock-ui.js"></script>
+<script src="renderer/dark-ui.js"></script>
+<script src="renderer/blur.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>
