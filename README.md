@@ -90,10 +90,20 @@ The usual browser keys work, also while you're typing inside a web page:
 | Ctrl+F, then Enter / Shift+Enter, F3 / Shift+F3 | Find in page, next / previous match |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Zoom in / out / reset |
 | Ctrl+D | Add the page to quick open |
+| Ctrl+Shift+N | Notes beside the page (open / close) |
 
 The address bar opens sites (`example.com`), local addresses (`localhost:3000`, `192.168.1.10`) and searches
 DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
 editor keeps its own keys.
+
+## Notes beside the page
+
+Click **📝** next to the address bar, or press **Ctrl+Shift+N** (also while you're in a web page), to open a
+note on the right of the page, so you can read and write at the same time. Click the note's title at the top
+of the panel to pick or search another note; **＋** starts a new one. Drag the panel's left edge to resize it.
+The app remembers whether it was open and its width. It's the same note as on the Notes screen: while you type
+in it, the formatting keys below work, and browser keys the editor doesn't use (Ctrl+T, Ctrl+W, Ctrl+L …) still
+do. In a very narrow window the panel hides until there's room.
 
 ## Notes formatting
 

@@ -6,7 +6,10 @@
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
     const p = t.dataset.panel;
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x.id === 'panel-' + p));
+    // The notes editor lives beside the page or on the Notes screen (renderer/side-notes.js).
+    if (sideNotes) sideNotes.sync();
   }));
+  let sideNotes = null;
 
   // ---- protection toggle ----
   const shield = document.getElementById('shield');
@@ -149,6 +152,7 @@
   // Returns true when the action was handled (so the key press is consumed).
   function runAction(action) {
     if (action === 'new-tab') { newTab(); return true; }
+    if (action === 'toggle-notes') { toggleSideNotes(); return true; }
     // Everything else only while the browser is shown; Notes keeps its own keys.
     if (!browserShown()) return false;
     const t = tabs.active();
@@ -181,6 +185,7 @@
 
   // Keys pressed in the host page (address bar, tab strip, ...).
   document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) return; // the notes editor already used this key (Ctrl+B …)
     const action = PWShortcuts.matchShortcut(PWShortcuts.fromKeyboardEvent(e));
     if (action && runAction(action)) e.preventDefault();
   });
@@ -292,6 +297,33 @@
     store: window.workspace.notes,
     onNotice: showNotice,
   });
+
+  // ---- notes beside the page (renderer/side-notes.js) ----
+  const byId = (id) => document.getElementById(id);
+  sideNotes = PWSideNotes.createSideNotes({
+    area: byId('browser-area'),
+    panel: byId('side-notes'),
+    divider: byId('side-divider'),
+    body: byId('side-body'),
+    pickBtn: byId('side-pick'),
+    titleEl: byId('side-title'),
+    newBtn: byId('side-new'),
+    closeBtn: byId('side-close'),
+    button: byId('side-notes-btn'),
+    shield: byId('drag-shield'),
+    notesUI,
+    isBrowserShown: () => browserShown(),
+  });
+  // Ctrl+Shift+N: from the Notes screen it goes to the browser with the note beside it.
+  function toggleSideNotes() {
+    if (!browserShown()) {
+      if (!sideNotes.isOpen()) sideNotes.toggle();
+      document.querySelector('.tab[data-panel="browser"]').click();
+      notesUI.focus();
+      return;
+    }
+    sideNotes.toggle();
+  }
 
   // ---- updates (lib/updater.js): a downloaded version installs on quit, or now ----
   window.workspace.onUpdateReady(({ version }) => {

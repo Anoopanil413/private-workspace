@@ -28,6 +28,7 @@
     { key: '-', shift: false, action: 'zoom-out' },
     { key: '0', shift: false, action: 'zoom-reset' },
     { key: 'd', shift: false, action: 'bookmark' },
+    { key: 'n', shift: true, action: 'toggle-notes' },
   ];
   const ALT = { d: 'focus-url', ArrowLeft: 'back', ArrowRight: 'forward' };
   const PLAIN = { F6: 'focus-url', F5: 'reload', F3: 'find-next' };

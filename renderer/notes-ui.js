@@ -22,6 +22,7 @@
     let data = { version: 1, notes: [] };
     let activeId = null;
     let saveTimer = null;
+    const listListeners = [];
 
     const active = () => data.notes.find((n) => n.id === activeId) || null;
     const read_ = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -82,6 +83,7 @@
         li.textContent = search.value.trim() ? 'No notes match.' : 'No notes yet.';
         list.append(li);
       }
+      listListeners.forEach((fn) => fn());
     }
 
     function select(id) {
@@ -266,8 +268,32 @@
       }
     }
 
+    // The editor (toolbar, note, status) and the note list can move next to the web
+    // pages (renderer/side-notes.js). null puts them back on the Notes screen.
+    const wrap = $('.notes-wrap');
+    const home = wrap.parentNode;
+    const homeNext = wrap.nextSibling;
+    function mountInto(container) {
+      if (container) container.append(wrap);
+      else home.insertBefore(wrap, homeNext);
+    }
+
+    function activeNote() {
+      const note = active();
+      return note ? { id: note.id, title: N.noteTitle(note) } : null;
+    }
+
     init();
-    return { flush };
+    return {
+      flush,
+      mountInto,
+      activeNote,
+      addNote,
+      focus: () => editor.focus(),
+      focusSearch: () => { search.focus(); search.select(); },
+      // Called after the list is drawn: a note was picked, added, renamed by editing…
+      onListChange: (fn) => { listListeners.push(fn); },
+    };
   }
 
   return { createNotesUI };

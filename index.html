@@ -96,7 +96,7 @@
   #star:disabled { opacity: .4; cursor: default; }
   .nav { position: relative; }
   .ab-badge { display: inline-flex; gap: 4px; align-items: center; background: var(--accent-dim); color: var(--accent); border-color: transparent; }
-  .ab-pop { position: absolute; right: 60px; top: calc(100% + 4px); z-index: 10; background: var(--bar); border: 1px solid var(--line);
+  .ab-pop { position: absolute; right: 192px; top: calc(100% + 4px); z-index: 10; background: var(--bar); border: 1px solid var(--line);
             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 260px;
             box-shadow: 0 10px 30px rgba(0,0,0,.5); font-size: 13px; }
   .ab-pop .ab-sub { color: var(--muted); }
@@ -104,7 +104,7 @@
   .ab-pop .ab-toggle input { accent-color: var(--accent); }
   .dark-btn { filter: grayscale(1); opacity: .7; }
   .dark-btn[aria-pressed="true"] { filter: none; opacity: 1; border-color: var(--focus); }
-  .dark-pop { right: 100px; min-width: 300px; }
+  .dark-pop { right: 144px; min-width: 300px; }
   .dark-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
   .dark-opt:hover { background: var(--chip); }
   .dark-opt input { accent-color: var(--accent); margin-top: 3px; }
@@ -112,6 +112,28 @@
   .dark-opt small { color: var(--muted); font-size: 11px; }
   .dark-foot { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; color: var(--muted); font-size: 12px; }
   .dark-foot button { align-self: flex-start; font-size: 12px; padding: 3px 10px; }
+
+  /* notes beside the page (renderer/side-notes.js) */
+  #side-notes-btn[aria-pressed="true"] { border-color: var(--focus); }
+  .browser-area { flex: 1; display: flex; min-height: 0; position: relative; }
+  .browser-area .webviews { min-width: 0; }
+  .side-notes { flex: none; display: flex; min-width: 0; background: var(--bg); position: relative; }
+  .side-notes[hidden], .side-notes.no-room { display: none; }
+  .side-divider { width: 6px; flex: none; cursor: col-resize; background: var(--line); }
+  .side-divider:hover { background: var(--focus); }
+  .side-inner { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+  .side-head { display: flex; gap: 4px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--bar); flex: none; }
+  .side-head button { padding: 3px 9px; }
+  .side-pick { flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side-body { flex: 1; display: flex; min-height: 0; }
+  .side-body .notes-wrap { position: relative; }
+  .side-body .notes-tools { display: none; }
+  .side-body .notes-side { display: none; position: absolute; z-index: 6; left: 8px; right: 8px; top: 4px; max-height: 60%;
+                           width: auto; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .side-notes.picker-open .side-body .notes-side { display: flex; }
+  .side-body .editor { padding: 12px 14px; }
+  .drag-shield { position: absolute; inset: 0; z-index: 20; cursor: col-resize; }
+  .drag-shield[hidden] { display: none; }
 
   /* notes */
   .notes-wrap { flex: 1; display: flex; min-height: 0; }
@@ -223,8 +245,10 @@
       <button id="dark-btn" class="dark-btn" aria-haspopup="true" aria-expanded="false" aria-pressed="false" title="Dark mode for websites">🌙</button>
       <div id="dark-pop" class="ab-pop dark-pop" role="dialog" aria-label="Dark mode for websites" hidden></div>
       <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
+      <button id="side-notes-btn" title="Notes beside the page (Ctrl+Shift+N)" aria-pressed="false">📝</button>
       <button id="go" class="primary">Go</button>
     </div>
+    <div class="browser-area" id="browser-area">
     <div class="webviews" id="webviews">
       <div class="findbar" id="findbar" role="search" hidden>
         <input id="find-input" placeholder="Find in page" spellcheck="false" aria-label="Find in page">
@@ -233,6 +257,19 @@
         <button id="find-next" title="Next (Enter)">↓</button>
         <button id="find-close" title="Close (Esc)">×</button>
       </div>
+    </div>
+    <aside class="side-notes" id="side-notes" aria-label="Notes beside the page" hidden>
+      <div class="side-divider" id="side-divider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+      <div class="side-inner">
+        <div class="side-head">
+          <button id="side-pick" class="side-pick" aria-haspopup="true" aria-expanded="false" title="Choose a note"><span id="side-title">Note</span> ▾</button>
+          <button id="side-new" title="New note">＋</button>
+          <button id="side-close" title="Close (Ctrl+Shift+N)">×</button>
+        </div>
+        <div class="side-body" id="side-body"></div>
+      </div>
+    </aside>
+    <div class="drag-shield" id="drag-shield" hidden></div>
     </div>
     <div class="shortcuts" id="bookmarks"></div>
   </div>
@@ -307,6 +344,7 @@
 <script src="renderer/adblock-ui.js"></script>
 <script src="renderer/dark-ui.js"></script>
 <script src="renderer/blur.js"></script>
+<script src="renderer/side-notes.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>
