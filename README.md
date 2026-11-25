@@ -4,15 +4,33 @@ A browser and notes window whose contents are **excluded from screen capture**: 
 screen sharing and monitoring apps don't see it, while you see it normally.
 In a capture the window is simply absent — whatever is behind it shows instead.
 
-## Run
+## Install
+
+Run `Private-Workspace-Setup-<version>.exe`. It installs for your Windows user only (no admin rights needed) and
+adds Start-menu and desktop shortcuts.
+
+The installer isn't code-signed, so the first time Windows shows **"Windows protected your PC"**: click
+**More info → Run anyway**.
+
+Your notes, tabs and settings live in `%APPDATA%\private-workspace`, the same folder `npm start` uses, so they
+carry over between the installed app and a development run.
+
+## Run from source
 
 ```
-cd workspace
 npm install     # first time only
 npm start
 ```
 
 If `npm start` says Electron failed to install, run `node node_modules/electron/install.js` once.
+
+## Build the installer
+
+```
+npm run dist    # -> dist\Private-Workspace-Setup-<version>.exe and dist\latest.yml
+```
+
+The app icon is `build/icon.png`; `npm run icon` redraws it from the SVG in `scripts/make-icon.js`.
 
 ## Browser shortcuts
 

@@ -19,8 +19,14 @@ const { userDataToUse } = require('./lib/paths');
 // Keep the data in %APPDATA%\private-workspace (see lib/paths.js), before anything
 // reads it: notes, tabs, settings and the single-instance lock.
 {
-  const folder = userDataToUse({ current: app.getPath('userData'), appData: app.getPath('appData'), appName: app.getName() });
-  if (folder) app.setPath('userData', folder);
+  const current = app.getPath('userData');
+  const folder = userDataToUse({ current, appData: app.getPath('appData'), appName: app.getName() });
+  if (folder) {
+    app.setPath('userData', folder);
+    // Electron creates the display-name folder before this code runs; remove it again
+    // if it's still empty (rmdir refuses non-empty folders, so nothing can be lost).
+    try { fs.rmdirSync(current); } catch { /* not empty, or already gone */ }
+  }
 }
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
