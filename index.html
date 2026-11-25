@@ -102,6 +102,16 @@
   .ab-pop .ab-sub { color: var(--muted); }
   .ab-pop .ab-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; }
   .ab-pop .ab-toggle input { accent-color: var(--accent); }
+  .dark-btn { filter: grayscale(1); opacity: .7; }
+  .dark-btn[aria-pressed="true"] { filter: none; opacity: 1; border-color: var(--focus); }
+  .dark-pop { right: 100px; min-width: 300px; }
+  .dark-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
+  .dark-opt:hover { background: var(--chip); }
+  .dark-opt input { accent-color: var(--accent); margin-top: 3px; }
+  .dark-opt span { display: flex; flex-direction: column; }
+  .dark-opt small { color: var(--muted); font-size: 11px; }
+  .dark-foot { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; color: var(--muted); font-size: 12px; }
+  .dark-foot button { align-self: flex-start; font-size: 12px; padding: 3px 10px; }
 
   /* notes */
   .notes-wrap { flex: 1; display: flex; min-height: 0; }
@@ -209,6 +219,8 @@
       <button id="ab-badge" class="ab-badge" aria-haspopup="true" aria-expanded="false">🛡 <span id="ab-count">0</span></button>
       <div id="ab-pop" class="ab-pop" role="dialog" aria-label="Ad blocking" hidden></div>
       <button id="zoom-badge" title="Reset zoom (Ctrl+0)" hidden>100%</button>
+      <button id="dark-btn" class="dark-btn" aria-haspopup="true" aria-expanded="false" aria-pressed="false" title="Dark mode for websites">🌙</button>
+      <div id="dark-pop" class="ab-pop dark-pop" role="dialog" aria-label="Dark mode for websites" hidden></div>
       <button id="star" title="Add this page to quick open" aria-pressed="false">☆</button>
       <button id="go" class="primary">Go</button>
     </div>
@@ -292,6 +304,7 @@
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
 <script src="renderer/adblock-ui.js"></script>
+<script src="renderer/dark-ui.js"></script>
 <script src="renderer/blur.js"></script>
 <script src="renderer/app.js"></script>
 </body>

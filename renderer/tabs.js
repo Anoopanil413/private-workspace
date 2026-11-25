@@ -165,6 +165,8 @@
       onChange: (fn) => { listeners.push(fn); },
       // Any change worth saving: a tab opened, closed, switched, navigated or renamed.
       onListChange: (fn) => { listListeners.push(fn); },
+      // For changes made from outside (a tab's url set before its page loads).
+      touched: listChanged,
     };
   }
 

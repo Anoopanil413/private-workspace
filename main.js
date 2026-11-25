@@ -1,7 +1,7 @@
 // Private Workspace — windows whose contents are excluded from screen capture.
 // setContentProtection(true) calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE),
 // so screenshots, screen-share and tracker captures do not see these windows.
-const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, globalShortcut, ipcMain, safeStorage, session, webContents } = require('electron');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -11,6 +11,17 @@ const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
 const { createSecureStore } = require('./lib/secure-store');
 const { validateSession, emptySession } = require('./renderer/session');
+const {
+  validateDarkPrefs, darkModeFor, cdpCommandsFor, setSiteMode, setDefaultMode, emptyDarkPrefs, hostOf: darkHostOf,
+} = require('./lib/dark-mode');
+const { userDataToUse } = require('./lib/paths');
+
+// Keep the data in %APPDATA%\private-workspace (see lib/paths.js), before anything
+// reads it: notes, tabs, settings and the single-instance lock.
+{
+  const folder = userDataToUse({ current: app.getPath('userData'), appData: app.getPath('appData'), appName: app.getName() });
+  if (folder) app.setPath('userData', folder);
+}
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
 const { createAdblock } = require('./lib/adblock');
@@ -97,6 +108,11 @@ app.on('web-contents-created', (_e, contents) => {
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
     forwardBrowserShortcuts(contents, type);
+    // Dark mode for websites: each new page gets its site's setting.
+    contents.on('did-start-navigation', (details, url, isInPlace, isMainFrame) => {
+      if ((details?.isMainFrame ?? isMainFrame) && !(details?.isSameDocument ?? isInPlace)) applyDark(contents, details?.url ?? url);
+    });
+    contents.on('dom-ready', () => applyDark(contents, contents.getURL()));
     // A new page starts its own blocked-request count.
     contents.on('did-start-navigation', (details, _url, isInPlace, isMainFrame) => {
       const mainFrame = details?.isMainFrame ?? isMainFrame;
@@ -156,6 +172,62 @@ function resetBlocked(id) {
   sendBlocked(id);
 }
 
+// ---- dark mode for websites (lib/dark-mode.js) ----
+// Choices are per site and reveal browsing, so they're stored encrypted.
+let darkPrefs = emptyDarkPrefs();
+let darkStore = null; // created once the app is ready (safeStorage needs that)
+
+// Send the DevTools-protocol commands for this page's mode. Fails quietly if another
+// debugger is attached or the page is gone.
+async function applyDark(contents, url) {
+  if (!contents || contents.isDestroyed()) return;
+  try {
+    const dbg = contents.debugger;
+    if (!dbg.isAttached()) dbg.attach('1.3');
+    for (const [method, params] of cdpCommandsFor(darkModeFor(darkPrefs, url))) await dbg.sendCommand(method, params);
+  } catch { /* leave this page as it is */ }
+}
+
+// Pages that dark mode applies to: tabs and the pop-up windows pages open.
+function darkTargets() {
+  return webContents.getAllWebContents().filter((wc) => !wc.isDestroyed()
+    && (wc.getType() === 'webview' || (wc.getType() === 'window' && wc !== mainWin?.webContents)));
+}
+const applyDarkAll = () => darkTargets().forEach((wc) => applyDark(wc, wc.getURL()));
+
+function darkState(url) {
+  const host = darkHostOf(url);
+  return {
+    host,
+    mode: darkModeFor(darkPrefs, url),
+    siteMode: host ? darkPrefs.sites[host] || null : null,
+    defaultMode: darkPrefs.default,
+  };
+}
+
+async function updateDark(next) {
+  darkPrefs = next;
+  applyDarkAll();
+  try { await darkStore?.save(darkPrefs); } catch { /* still applied for this session */ }
+}
+
+ipcMain.handle('dark:get', (event, url) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  return darkState(String(url));
+});
+
+ipcMain.handle('dark:set', async (event, { host, mode, url } = {}) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  await updateDark(setSiteMode(darkPrefs, String(host), mode));
+  return darkState(String(url));
+});
+
+ipcMain.handle('dark:set-default', async (event, { mode, url } = {}) => {
+  if (event.sender !== mainWin?.webContents) return null;
+  await updateDark(setDefaultMode(darkPrefs, mode));
+  return darkState(String(url));
+});
+
 ipcMain.handle('adblock:get-site', (event, host) => {
   if (event.sender !== mainWin?.webContents) return null;
   return { running: adblock.isRunning(), allowed: adblock.isAllowed(String(host)) };
@@ -190,6 +262,14 @@ function setupSession() {
         : `Download of ${item.getFilename()} ${state}.`);
     });
   });
+
+  darkStore = createSecureStore({
+    file: path.join(app.getPath('userData'), 'dark-sites.enc'),
+    cipher: dpapi,
+    validate: validateDarkPrefs,
+    empty: emptyDarkPrefs,
+  });
+  darkStore.load().then((prefs) => { darkPrefs = prefs; applyDarkAll(); });
 
   adblock.start(ses, onBlocked).then((running) => {
     if (!running) notifyWhenReady('Ad blocking is off: the block list could not be downloaded. Pages still load normally.');
@@ -461,14 +541,19 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-// Don't exit while a notes or session save is still being written (e.g. the last edit,
-// sent as the window closed).
+// Don't exit while a notes, session or dark-mode save is still being written (e.g. the
+// last edit, sent as the window closed); give up waiting after 5 s (a stuck disk).
+// Then exit directly: calling app.quit() again from here can be ignored while the first
+// quit is still in progress, which left the process running with no window (and the
+// single-instance lock then stopped the app from opening again).
+const SAVE_WAIT_MS = 5000;
 let savesSettled = false;
 app.on('will-quit', (e) => {
   if (savesSettled) return;
   e.preventDefault();
   savesSettled = true;
-  Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle()]).finally(() => app.quit());
+  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), darkStore?.whenIdle()]);
+  Promise.race([saves, new Promise((r) => setTimeout(r, SAVE_WAIT_MS))]).finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => {

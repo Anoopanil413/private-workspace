@@ -51,7 +51,15 @@
     const u = toUrl(s);
     if (!u) return;
     const tab = tabs.active();
-    if (tab) tab.webview.src = u; else tabs.open(u);
+    if (tab) {
+      tab.webview.src = u;
+      // Record where the tab is going straight away, so closing the app before the
+      // page starts loading still saves it in the session.
+      tab.url = u;
+      tabs.touched();
+    } else {
+      tabs.open(u);
+    }
   };
   // Webview methods throw until the page has attached; ignore clicks that early.
   const onActive = (fn) => () => { const t = tabs.active(); if (t) { try { fn(t.webview); } catch {} } };
@@ -76,6 +84,12 @@
     getCurrent: () => { const t = tabs.active(); return t ? { title: t.title, url: t.url } : null; },
     onOpen: navigate,
   });
+  const darkButton = PWDarkUI.createDarkButton({
+    button: document.getElementById('dark-btn'),
+    pop: document.getElementById('dark-pop'),
+    dark: window.workspace.dark,
+    getActive: () => tabs.active(),
+  });
   const shieldBadge = PWAdblockUI.createAdblockBadge({
     badge: document.getElementById('ab-badge'),
     countEl: document.getElementById('ab-count'),
@@ -87,6 +101,7 @@
     if (document.activeElement !== url) url.value = t && !isBlank(t.url) ? t.url : '';
     bookmarks.refresh();
     shieldBadge.refresh();
+    darkButton.refresh();
     if (t !== findTab) closeFind();
     paintZoom();
   });

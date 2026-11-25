@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('workspace', {
     getSite: (host) => ipcRenderer.invoke('adblock:get-site', host),
     setSite: (host, allowed) => ipcRenderer.invoke('adblock:set-site', { host, allowed }),
   },
+  dark: {
+    get: (url) => ipcRenderer.invoke('dark:get', url),
+    set: (host, mode, url) => ipcRenderer.invoke('dark:set', { host, mode, url }),
+    setDefault: (mode, url) => ipcRenderer.invoke('dark:set-default', { mode, url }),
+  },
   session: {
     load: () => ipcRenderer.invoke('session:load'),
     save: (session) => ipcRenderer.invoke('session:save', session),
