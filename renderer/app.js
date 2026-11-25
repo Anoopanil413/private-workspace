@@ -232,7 +232,37 @@
   window.workspace.onOpenTab(({ url: u, background }) => {
     if (/^https?:\/\//i.test(u)) tabs.open(u, { background });
   });
-  tabs.open(HOME);
+  // ---- restore last time's tabs; keep the saved list up to date (renderer/session.js) ----
+  let restoring = true;
+  let sessionTimer = null;
+  function saveSessionNow() {
+    clearTimeout(sessionTimer);
+    sessionTimer = null;
+    const { tabs: list, activeIndex } = tabs.snapshot();
+    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex));
+  }
+  tabs.onListChange(() => {
+    if (restoring) return;
+    clearTimeout(sessionTimer);
+    sessionTimer = setTimeout(saveSessionNow, 1000);
+  });
+  // Closing right after a change: send it now (the main process waits for the write).
+  window.addEventListener('beforeunload', () => { if (sessionTimer) saveSessionNow(); });
+
+  (async () => {
+    let saved = PWSession.emptySession();
+    try { saved = PWSession.validateSession(await window.workspace.session.load()); } catch {}
+    if (saved.tabs.length) {
+      // Only the active tab loads now; the others load when first clicked.
+      for (const t of saved.tabs) tabs.open(t.url, { background: true, lazy: true, title: t.title });
+      tabs.activate(tabs.list()[saved.active].id);
+      const n = saved.tabs.length;
+      showNotice(`Restored ${n} tab${n === 1 ? '' : 's'} from last time.`);
+    } else {
+      tabs.open(HOME);
+    }
+    restoring = false;
+  })();
 
   // ---- notes (encrypted on disk by the main process) ----
   PWNotesUI.createNotesUI({

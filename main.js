@@ -9,6 +9,8 @@ const nativeGuard = require('./native-guard');
 const { lockTitle, popupOptions: privatePopupOptions } = require('./lib/window-privacy');
 const { createPanic } = require('./lib/panic');
 const { createNotesStore } = require('./lib/notes-store');
+const { createSecureStore } = require('./lib/secure-store');
+const { validateSession, emptySession } = require('./renderer/session');
 const notesExport = require('./lib/notes-export');
 const { routeWindowOpen } = require('./lib/window-routing');
 const { createAdblock } = require('./lib/adblock');
@@ -235,14 +237,37 @@ ipcMain.handle('toggle-protection', (event) => {
 
 ipcMain.handle('get-protection', () => protectedOn);
 
-// Notes: encrypted with Windows DPAPI (safeStorage), only the host page may use them.
-const notesStore = createNotesStore({
-  file: path.join(app.getPath('userData'), 'notes.enc'),
-  cipher: {
-    isAvailable: () => safeStorage.isEncryptionAvailable(),
-    encrypt: (s) => safeStorage.encryptString(s),
-    decrypt: (b) => safeStorage.decryptString(b),
-  },
+// Windows DPAPI (safeStorage) for everything saved that is private.
+const dpapi = {
+  isAvailable: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (s) => safeStorage.encryptString(s),
+  decrypt: (b) => safeStorage.decryptString(b),
+};
+
+// Notes: encrypted, only the host page may use them.
+const notesStore = createNotesStore({ file: path.join(app.getPath('userData'), 'notes.enc'), cipher: dpapi });
+
+// Open tabs, restored on the next start (renderer/session.js has the rules).
+const sessionStore = createSecureStore({
+  file: path.join(app.getPath('userData'), 'session.enc'),
+  cipher: dpapi,
+  validate: validateSession,
+  empty: emptySession,
+});
+
+ipcMain.handle('session:load', (event) => {
+  if (event.sender !== mainWin?.webContents) return emptySession();
+  return sessionStore.load();
+});
+
+ipcMain.handle('session:save', async (event, session) => {
+  if (event.sender !== mainWin?.webContents) return { ok: false };
+  try {
+    await sessionStore.save(session);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 });
 
 ipcMain.handle('notes:load', (event) => {
@@ -429,14 +454,14 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-// Don't exit while a notes save is still being written (e.g. the last edit, sent as the
-// window closed).
-let notesSettled = false;
+// Don't exit while a notes or session save is still being written (e.g. the last edit,
+// sent as the window closed).
+let savesSettled = false;
 app.on('will-quit', (e) => {
-  if (notesSettled) return;
+  if (savesSettled) return;
   e.preventDefault();
-  notesSettled = true;
-  notesStore.whenIdle().finally(() => app.quit());
+  savesSettled = true;
+  Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle()]).finally(() => app.quit());
 });
 
 app.on('window-all-closed', () => {

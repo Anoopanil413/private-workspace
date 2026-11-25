@@ -41,6 +41,10 @@
   .built-tag { background: var(--accent); color: #0b0b0f; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
   .card[data-built] { border-color: var(--accent-dim); }
   .built-note { color: var(--accent); }
+  .progress-tag { background: var(--warn); color: #0b0b0f; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
+  .card[data-progress] { border-color: #6b5214; }
+  .progress-note { color: var(--warn); }
+  .new-tag { background: #312e81; color: #c7d2fe; padding: 1px 8px; border-radius: 999px; font-weight: 700; }
   .card h3 { margin: 0; font-size: 16px; }
   .card > p { margin: 0; color: var(--muted); font-size: 13px; }
   .visual { background: #0f0f14; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 12px; }
@@ -185,6 +189,7 @@
     <button data-f="project">Project</button>
     <button data-f="built">✓ Built</button>
     <button data-f="todo">Not built yet</button>
+    <button data-f="new">✨ New ideas</button>
   </div>
 </header>
 
@@ -401,7 +406,7 @@ a91ff0c3d7e25b68…
 <article class="card" data-cat="browser" data-id="shortcuts-find" data-name="Keyboard shortcuts + find">
   <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
   <h3>Keyboard shortcuts and find on page</h3>
-  <p>The usual browser keys, which currently do nothing.</p>
+  <p>The usual browser keys, including while typing inside a web page. Ctrl+T puts the cursor in the address bar.</p>
   <div class="visual">
     <div class="win">
       <div class="w-nav"><span class="btn">←</span><span class="btn">→</span><span class="btn">⟳</span><span class="w-url">https://example.com/terms</span></div>
@@ -520,17 +525,22 @@ a91ff0c3d7e25b68…
 </article>
 
 <!-- ===================== PROJECT ===================== -->
-<article class="card" data-cat="project" data-id="installer" data-name="Windows .exe build">
-  <div class="meta"><span class="tag project">Project</span><span class="effort">S</span></div>
-  <h3>Portable .exe, no npm needed</h3>
-  <p>Package the app with electron-builder, so it opens with a double-click or from the Start menu instead of <code>npm start</code>.</p>
+<article class="card" data-cat="project" data-id="installer" data-name="Windows installer + auto-update">
+  <div class="meta"><span class="tag project">Project</span><span class="effort">M</span></div>
+  <h3>Windows installer that updates itself</h3>
+  <p>Install with a normal Setup .exe: Start menu, desktop shortcut, no admin rights needed. When you push a version tag
+    (<code>v1.2.0</code>), GitHub builds and publishes it, and every installed copy downloads it quietly and installs on restart.</p>
   <div class="visual">
     <div class="exe">
       <div class="icon">🛡</div>
-      <div><b>Private Workspace 1.0.0.exe</b><br><small style="color:var(--muted)">Portable · ~90 MB · double-click to run</small></div>
+      <div><b>Private Workspace Setup 1.1.0.exe</b><br><small style="color:var(--muted)">Installer · per user · Start menu + desktop shortcut</small></div>
     </div>
-    <div class="term" style="margin-top:10px"><span class="dim">&gt;</span> npm run dist
-<br><span class="ok">✓</span> built dist\Private Workspace 1.0.0.exe</div>
+    <div class="term" style="margin-top:10px"><span class="dim">&gt;</span> npm version minor &amp;&amp; git push --follow-tags
+<br><span class="ok">✓</span> v1.2.0 tagged · GitHub Actions: tests passed · release published</div>
+    <div class="win" style="margin-top:10px">
+      <div class="w-status"><span class="dot"></span>Hidden from screen capture</div>
+      <div class="notice" style="display:flex;gap:8px;align-items:center">⬆ Version 1.2.0 is ready. It installs when you close the app.<span style="flex:1"></span><span class="btn primary">Restart now</span></div>
+    </div>
   </div>
   <label class="pick"><input type="checkbox"> Build this</label>
 </article>
@@ -566,6 +576,148 @@ a91ff0c3d7e25b68…
   <label class="pick"><input type="checkbox"> Build this</label>
 </article>
 
+<!-- ===================== BUILT SINCE THE FIRST PREVIEW ===================== -->
+<article class="card" data-cat="notes" data-id="rich-notes" data-name="Rich-text notes">
+  <div class="meta"><span class="tag notes">Notes</span><span class="effort">M</span></div>
+  <h3>Rich-text notes with a formatting toolbar</h3>
+  <p>Formatting shows as you type: bold, italic, underline, strikethrough, numbered and bulleted lists, checklists, indent and code, with the usual shortcuts. Pastes from Word or Google Docs keep their formatting and lose everything else.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-tabs"><span class="w-tab">Browser</span><span class="w-tab active">Notes</span></div>
+      <div class="row" style="gap:4px;color:var(--muted)"><b>B</b> <i>I</i> <u>U</u> <s>S</s> │ 1≡ •≡ ☑ ⇥ │ &lt;/&gt;</div>
+      <div class="w-page" style="background:var(--bg);color:var(--text);min-height:90px">
+        <b style="font-size:13px">Trip plan</b><br>Pack <b>passport</b> and <i>charger</i><br>
+        <span style="color:var(--accent)">☑</span> <s style="color:var(--muted)">book hotel</s><br>☐ buy tickets
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<!-- ===================== NEW IDEAS ===================== -->
+<article class="card" data-cat="project" data-new data-rec data-id="settings" data-name="Settings page">
+  <div class="meta"><span class="tag project">Project</span><span class="effort">M</span><span class="rec">★ Recommended</span></div>
+  <h3>Settings page</h3>
+  <p>One place for the options the app now has: change the panic key, turn ad blocking on or off everywhere, see the version and update status, and (with App lock) the idle time.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="row"><span>Panic key</span><span class="sp"></span><span class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd></span><span class="btn">Change</span></div>
+      <div class="row"><span>Block ads &amp; trackers</span><span class="sp"></span><span class="toggle on"></span></div>
+      <div class="row"><span>Lock after idle</span><span class="sp"></span><span class="btn">5 min ▾</span></div>
+      <div class="row"><span>Version 1.2.0</span><span class="sp"></span><small>Up to date · checked 10:42</small></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-new data-rec data-id="restore-tabs" data-name="Restore tabs after restart">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Reopen your tabs after a restart</h3>
+  <p>The tabs you had open come back when the app starts (or after an update installs). Stored encrypted like your notes; off in a private session.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-tabs"><span class="w-tab active">✉ Inbox</span><span class="w-tab">💬 WhatsApp</span><span class="w-tab">📁 Drive</span><span class="w-tab plus">＋</span></div>
+      <div class="notice">Restored 3 tabs from your last session.</div>
+      <div class="w-page"><div class="ln m"></div><div class="ln s"></div></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-new data-id="containers" data-name="Separate accounts per tab">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">M</span></div>
+  <h3>Separate accounts side by side</h3>
+  <p>Give a tab its own cookie jar, so two Gmail (or WhatsApp, or bank) logins can be open at once. Each account gets a colour on its tab.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-tabs">
+        <span class="w-tab active" style="box-shadow:inset 0 2px 0 #60a5fa">✉ Work inbox</span>
+        <span class="w-tab" style="box-shadow:inset 0 2px 0 #f472b6">✉ Personal inbox</span>
+        <span class="w-tab plus">＋ ▾</span>
+      </div>
+      <div class="w-page"><div class="ln m"></div><div class="ln s"></div></div>
+      <div class="chips">New tab in: <span class="c">Work</span><span class="c" style="color:#f472b6">Personal</span><span class="add">＋ New account</span></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-new data-id="command-palette" data-name="Command palette (Ctrl+K)">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">M</span></div>
+  <h3>Command palette (Ctrl+K)</h3>
+  <p>One search box for everything: jump to an open tab, a note, a bookmark, or run an action ("new note", "export notes", "clear data").</p>
+  <div class="visual">
+    <div class="win">
+      <div class="w-page" style="background:var(--bg);color:var(--text);padding:10px">
+        <div class="w-url" style="color:var(--text)">🔍 inter</div>
+        <div class="row"><span>📝 Interview prep</span><span class="sp"></span><small>Note</small></div>
+        <div class="row"><span>✉ Interview invite – Inbox</span><span class="sp"></span><small>Tab</small></div>
+        <div class="row"><span>➕ New note</span><span class="sp"></span><small>Action</small></div>
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="privacy" data-new data-rec data-id="blur-unfocused" data-name="Blur when unfocused">
+  <div class="meta"><span class="tag privacy">Privacy</span><span class="effort">S</span><span class="rec">★ Recommended</span></div>
+  <h3>Blur when you switch away</h3>
+  <p>Screen capture can't see the app, but people behind you can. When you click into another app, the workspace blurs; it clears when you come back. On/off in Settings.</p>
+  <div class="visual ba">
+    <figure><figcaption>Using it</figcaption>
+      <div class="win"><div class="w-page"><b>Salary: 18–22</b><div class="ln m"></div></div></div>
+    </figure>
+    <figure class="after"><figcaption>Other app focused</figcaption>
+      <div class="win"><div class="w-page" style="filter:blur(4px)"><b>Salary: 18–22</b><div class="ln m"></div></div></div>
+    </figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-new data-id="downloads-list" data-name="Downloads list">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
+  <h3>Downloads list</h3>
+  <p>See what you downloaded (with progress), open the folder, or delete a file, without leaving the protected window.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="row"><span>📄 invoice.pdf</span><span class="sp"></span><small>Done · 240 KB</small><span class="btn">🗑</span></div>
+      <div class="row"><span>🎬 meeting.mp4</span><span class="sp"></span><small>62% · 1.2 MB/s</small><span class="btn">×</span></div>
+      <div class="row"><span class="btn">Open folder</span><span class="sp"></span><small>Downloads\Private Workspace</small></div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="browser" data-new data-id="dark-sites" data-name="Dark mode for websites">
+  <div class="meta"><span class="tag browser">Browser</span><span class="effort">S</span></div>
+  <h3>Dark mode for websites</h3>
+  <p>Ask sites for their dark theme, or force a dark look on sites without one, so a bright page doesn't light up the room. Per-site switch.</p>
+  <div class="visual ba">
+    <figure><figcaption>Now</figcaption><div class="win"><div class="w-page"><div class="ln m"></div><div class="ln s"></div></div></div></figure>
+    <figure class="after"><figcaption>After</figcaption><div class="win"><div class="w-page" style="background:#1f1f27"><div class="ln m" style="background:#3f3f4a"></div><div class="ln s" style="background:#3f3f4a"></div></div></div></figure>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
+<article class="card" data-cat="notes" data-new data-id="pin-notes" data-name="Pin and colour-tag notes">
+  <div class="meta"><span class="tag notes">Notes</span><span class="effort">S</span></div>
+  <h3>Pin and colour-tag notes</h3>
+  <p>Pin important notes to the top of the list and give them a colour tag you can filter by.</p>
+  <div class="visual">
+    <div class="win">
+      <div class="notes3" style="grid-template-columns:1fr">
+        <div class="nlist">
+          <div class="srch">🔍 Search · <span style="color:#f87171">●</span> <span style="color:#60a5fa">●</span> <span style="color:#fbbf24">●</span></div>
+          <div class="n a">📌 Interview prep <span style="color:#f87171">●</span><small>Pinned</small></div>
+          <div class="n">📌 Passwords hint <span style="color:#60a5fa">●</span><small>Pinned</small></div>
+          <div class="n">Shopping <span style="color:#fbbf24">●</span><small>Mon</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <label class="pick"><input type="checkbox"> Build this</label>
+</article>
+
 </main>
 
 <div class="selbar">
@@ -578,18 +730,31 @@ a91ff0c3d7e25b68…
 <script>
   const KEY = 'feature-preview-picks';
   const cards = [...document.querySelectorAll('.card')];
-  // Built on branch feature/workspace-additions (plan: docs/superpowers/plans/2026-11-24-workspace-additions.md).
-  const BUILT = ['popup-title-leak', 'encrypt-notes', 'panic-key', 'tabs', 'bookmarks', 'adblock', 'multi-notes', 'notes-export'];
+  // Built on branch feature/workspace-additions (plans in docs/superpowers/plans/).
+  const BUILT = ['popup-title-leak', 'encrypt-notes', 'panic-key', 'tabs', 'bookmarks', 'adblock', 'multi-notes',
+    'notes-export', 'shortcuts-find', 'rich-notes'];
+  // Being built now (plan: docs/superpowers/plans/2026-11-25-installer-and-updates.md).
+  const IN_PROGRESS = ['installer'];
   let picks = new Set();
   try { picks = new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch {}
-  for (const id of BUILT) picks.delete(id);
-  cards.filter(c => BUILT.includes(c.dataset.id)).forEach(c => {
-    c.dataset.built = '';
+  for (const id of [...BUILT, ...IN_PROGRESS]) picks.delete(id);
+  function mark(ids, attr, className, label, note) {
+    cards.filter(c => ids.includes(c.dataset.id)).forEach(c => {
+      c.dataset[attr] = '';
+      const tag = document.createElement('span');
+      tag.className = className;
+      tag.textContent = label;
+      c.querySelector('.meta').prepend(tag);
+      c.querySelector('.pick').innerHTML = note;
+    });
+  }
+  mark(BUILT, 'built', 'built-tag', '✓ Built', '<span class="built-note">Built. Try it with <code>npm start</code>.</span>');
+  mark(IN_PROGRESS, 'progress', 'progress-tag', '⏳ In progress', '<span class="progress-note">Being built now, step by step.</span>');
+  cards.filter(c => c.hasAttribute('data-new')).forEach(c => {
     const tag = document.createElement('span');
-    tag.className = 'built-tag';
-    tag.textContent = '✓ Built';
+    tag.className = 'new-tag';
+    tag.textContent = 'New idea';
     c.querySelector('.meta').prepend(tag);
-    c.querySelector('.pick').innerHTML = '<span class="built-note">Built. Try it with <code>npm start</code>.</span>';
   });
 
   function render() {
@@ -632,7 +797,8 @@ a91ff0c3d7e25b68…
     const f = b.dataset.f;
     const show = (c) => f === 'all'
       || (f === 'built' && c.hasAttribute('data-built'))
-      || (f === 'todo' && !c.hasAttribute('data-built'))
+      || (f === 'todo' && !c.hasAttribute('data-built') && !c.hasAttribute('data-progress'))
+      || (f === 'new' && c.hasAttribute('data-new'))
       || (f === 'rec' ? c.hasAttribute('data-rec') : c.dataset.cat === f);
     cards.forEach(c => { c.hidden = !show(c); });
   }));

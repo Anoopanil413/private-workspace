@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('workspace', {
     getSite: (host) => ipcRenderer.invoke('adblock:get-site', host),
     setSite: (host, allowed) => ipcRenderer.invoke('adblock:set-site', { host, allowed }),
   },
+  session: {
+    load: () => ipcRenderer.invoke('session:load'),
+    save: (session) => ipcRenderer.invoke('session:save', session),
+  },
   notes: {
     load: () => ipcRenderer.invoke('notes:load'),
     save: (data) => ipcRenderer.invoke('notes:save', data),

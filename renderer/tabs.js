@@ -57,6 +57,8 @@
     let activeId = null;
     let seq = 0;
     const listeners = [];
+    const listListeners = [];
+    const listChanged = () => listListeners.forEach((fn) => fn());
 
     const find = (id) => tabs.find((t) => t.id === id) || null;
     const active = () => find(activeId);
@@ -74,12 +76,14 @@
       tab.el.title = tab.labelEl.textContent;
     }
 
-    function open(url, { background = false } = {}) {
+    // lazy: the page only loads when the tab is first shown (restored tabs); until
+    // then the tab shows `title`.
+    function open(url, { background = false, lazy = false, title = '' } = {}) {
       const id = `t${++seq}`;
       const webview = document.createElement('webview');
       webview.setAttribute('partition', PARTITION);
       webview.setAttribute('allowpopups', '');
-      webview.setAttribute('src', url);
+      if (!lazy) webview.setAttribute('src', url);
 
       const el = document.createElement('div');
       el.className = 'btab';
@@ -92,7 +96,7 @@
       closeBtn.textContent = '×';
       el.append(labelEl, closeBtn);
 
-      const tab = { id, webview, el, labelEl, title: '', url };
+      const tab = { id, webview, el, labelEl, title: lazy ? title : '', url, pending: lazy ? url : null };
       tabs.push(tab);
       strip.insertBefore(el, addBtn);
       host.append(webview);
@@ -102,17 +106,21 @@
       el.addEventListener('auxclick', (e) => { if (e.button === 1) close(id); });
       closeBtn.addEventListener('click', () => close(id));
 
-      const changed = () => { paint(tab); if (id === activeId) emit(); };
+      const changed = () => { paint(tab); if (id === activeId) emit(); listChanged(); };
       webview.addEventListener('page-title-updated', (e) => { tab.title = e.title; changed(); });
       webview.addEventListener('did-navigate', (e) => { tab.url = e.url; tab.title = ''; changed(); });
       webview.addEventListener('did-navigate-in-page', (e) => { if (e.isMainFrame) { tab.url = e.url; changed(); } });
 
-      if (!background || !activeId) activate(id);
+      // A lazy (restored) tab never activates by itself: that would load it.
+      if (!background || (!activeId && !lazy)) activate(id);
+      else listChanged();
       return tab;
     }
 
     function activate(id) {
-      if (!find(id)) return;
+      const tab = find(id);
+      if (!tab) return;
+      if (tab.pending) { tab.webview.setAttribute('src', tab.pending); tab.pending = null; }
       activeId = id;
       for (const t of tabs) {
         const on = t.id === id;
@@ -121,6 +129,7 @@
         t.webview.classList.toggle('active', on);
       }
       emit();
+      listChanged();
     }
 
     function close(id) {
@@ -136,16 +145,26 @@
       tab.webview.remove();
       if (next) activate(next);
       else { activeId = null; if (onNewTab) onNewTab(); else open(homeUrl); }
+      listChanged();
     }
+
+    // The tabs as { url, title } plus the active index, for saving the session.
+    const snapshot = () => ({
+      tabs: tabs.map((t) => ({ url: t.url, title: t.title })),
+      activeIndex: tabs.indexOf(active()),
+    });
 
     return {
       open,
       close,
       activate,
       active,
+      snapshot,
       list: () => tabs.slice(),
       reopen: () => (closed.length ? open(closed.pop()) : null),
       onChange: (fn) => { listeners.push(fn); },
+      // Any change worth saving: a tab opened, closed, switched, navigated or renamed.
+      onListChange: (fn) => { listListeners.push(fn); },
     };
   }
 
