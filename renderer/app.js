@@ -314,6 +314,44 @@
     notesUI,
     isBrowserShown: () => browserShown(),
   });
+  // ---- right-click on selected page text: copy, or add it to a note (renderer/clip.js) ----
+  const ctxMenu = PWContextMenu.createMenu(byId('ctx-menu'));
+  tabs.onChange(() => ctxMenu.hide());
+  const noteBeside = () => (sideNotes.isOpen() && browserShown() ? notesUI.activeNote() : null);
+  // The page's selection, in full: Chromium shortens the menu's copy of long selections.
+  // Falls back to that copy (text selected inside a frame isn't the page's selection).
+  async function selectedText(tab, fromMenu) {
+    let full = '';
+    try { full = String(await tab.webview.executeJavaScript('String(getSelection())')); } catch {}
+    return full.trim() && full.length >= fromMenu.length ? full : fromMenu;
+  }
+  async function onMenuPick(item, tab, params) {
+    if (item.action === 'copy') { try { tab.webview.copy(); } catch {} return; }
+    if (item.action !== 'add') return;
+    const html = PWClip.clipHtml({ text: await selectedText(tab, params.selectionText), title: tab.title, url: tab.url });
+    if (!html) return;
+    const note = await notesUI.append(item.noteId, html);
+    const shown = noteBeside();
+    showNotice(`Added to "${note.title}".`, shown && shown.id === note.id ? {} : {
+      action: { label: 'Show', onClick: () => showNoteBeside(note.id) },
+    });
+  }
+  function showNoteBeside(id) {
+    notesUI.open(id);
+    if (!sideNotes.isOpen()) sideNotes.toggle();
+    if (!browserShown()) document.querySelector('.tab[data-panel="browser"]').click();
+  }
+  // <webview> events don't bubble: listen while they travel down (capture).
+  byId('webviews').addEventListener('context-menu', (e) => {
+    const tab = tabs.list().find((t) => t.webview === e.target);
+    const params = e.params;
+    if (!tab || !params) return;
+    const items = PWContextMenu.selectionMenu({ selectionText: params.selectionText, sideNote: noteBeside(), recent: notesUI.recent(6) });
+    if (!items.length) return;
+    // x, y are already in the window's coordinates (measured), not the page's.
+    ctxMenu.show(items, params.x, params.y, (item) => onMenuPick(item, tab, params));
+  }, true);
+
   // Ctrl+Shift+N: from the Notes screen it goes to the browser with the note beside it.
   function toggleSideNotes() {
     if (!browserShown()) {

@@ -283,8 +283,38 @@
       return note ? { id: note.id, title: N.noteTitle(note) } : null;
     }
 
-    init();
+    // Text sent from a page (renderer/clip.js). noteId null, or a note that no longer
+    // exists, makes a new note. The note open in the editor gets it through the editor,
+    // so what's on screen and what's saved stay the same.
+    async function append(noteId, html) {
+      await ready;
+      const clean = PWRichText.sanitizeHtml(html);
+      let note = noteId ? data.notes.find((n) => n.id === noteId) : null;
+      if (note && note.id === activeId) {
+        editor.appendHtml(clean);
+        return activeNote();
+      }
+      const now = Date.now();
+      if (note) {
+        note = { ...note, body: note.body + clean, format: 'html', updated: now };
+        data = { version: 1, notes: data.notes.map((n) => (n.id === note.id ? note : n)) };
+      } else {
+        note = { ...newNote(), body: clean, updated: now };
+        data = { version: 1, notes: [note, ...data.notes] };
+      }
+      renderList();
+      await saveNow();
+      return { id: note.id, title: N.noteTitle(note) };
+    }
+
+    const recent = (n) => N.sortByUpdated(data.notes).slice(0, n).map((note) => ({ id: note.id, title: N.noteTitle(note) }));
+    const open = (id) => { if (data.notes.some((n) => n.id === id)) { search.value = ''; select(id); } };
+
+    const ready = init();
     return {
+      append,
+      recent,
+      open,
       flush,
       mountInto,
       activeNote,

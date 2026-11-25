@@ -269,6 +269,13 @@
         paintState();
       },
       getHtml: () => RT.sanitizeHtml(editor.innerHTML),
+      // Adds HTML at the end (text sent from a page) without moving the caret, and
+      // shows it; saving goes through onChange like typing.
+      appendHtml(html) {
+        editor.insertAdjacentHTML('beforeend', RT.sanitizeHtml(html || ''));
+        editor.scrollTop = editor.scrollHeight;
+        changed();
+      },
       setEnabled(on) {
         editor.contentEditable = on ? 'true' : 'false';
         if (toolbar) for (const b of toolbar.querySelectorAll('button')) b.disabled = !on;

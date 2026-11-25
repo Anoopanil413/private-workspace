@@ -105,6 +105,20 @@ The app remembers whether it was open and its width. It's the same note as on th
 in it, the formatting keys below work, and browser keys the editor doesn't use (Ctrl+T, Ctrl+W, Ctrl+L …) still
 do. In a very narrow window the panel hides until there's room.
 
+## Send selected text to a note
+
+Select text on a web page and right-click it:
+
+- **Copy** copies it.
+- **Add to "<note>"** (when a note is open beside the page) adds it to that note straight away.
+- **Add to note ▸** lists your five newest notes and **＋ New note**.
+
+The text goes in as a quote, followed by the page's title and address (as plain text: notes don't keep links),
+for example `— Careers · careers.example.com/jobs`. Formatting from the page isn't kept, and very long selections
+are cut at 20,000 characters. The text goes straight into your encrypted notes, never through the clipboard. The
+menu is drawn inside the app's window, so it's hidden from screen capture like the rest of the app. Right-clicking
+without a selection does nothing, as before.
+
 ## Notes formatting
 
 Notes are rich text: formatting shows as you type. Use the toolbar above the note or these keys:
