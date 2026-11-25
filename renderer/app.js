@@ -28,6 +28,13 @@
   const showNotice = (text, opts) => notices.show(text, opts);
   window.workspace.onNotice(showNotice);
 
+  // ---- blur when another app has focus (renderer/blur.js) ----
+  PWBlur.createBlurGuard({
+    body: document.body,
+    button: document.getElementById('blur-toggle'),
+    onWindowFocus: window.workspace.onWindowFocus,
+  });
+
   // ---- browser (tabs) ----
   const HOME = 'https://duckduckgo.com';
   const url = document.getElementById('url');

@@ -26,6 +26,13 @@
   .off { color: var(--danger); }
   .status .spacer { flex: 1; }
   .hint { color: var(--muted); font-size: 12px; }
+  .blur-toggle { font-size: 12px; padding: 4px 10px; color: var(--muted); }
+  .blur-toggle[aria-pressed="true"] { color: var(--accent); border-color: var(--accent-dim); }
+  /* Blur when away: everything but the status strip, web pages included. */
+  body.privacy-blur > *:not(.status):not(script) { filter: blur(14px); pointer-events: none; user-select: none; }
+  body.privacy-blur::after { content: "Hidden while you're in another app"; position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%); background: var(--bar); color: var(--text); border: 1px solid var(--line);
+    padding: 10px 18px; border-radius: 10px; font-size: 14px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
   .hint kbd { font: 11px Consolas, monospace; background: var(--chip); border: 1px solid var(--line);
               border-radius: 4px; padding: 0 5px; color: var(--text); }
   button { font: inherit; color: var(--text); background: var(--chip); border: 1px solid var(--line);
@@ -177,6 +184,7 @@
     <span class="shield on" id="shield"><span class="dot"></span><span id="shield-text">Hidden from screen capture</span></span>
     <span class="spacer"></span>
     <span class="hint"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>H</kbd> hides everything</span>
+    <button id="blur-toggle" class="blur-toggle" aria-pressed="true">◐ Blur when away</button>
     <button id="toggle">Turn off</button>
   </div>
   <div class="banner" id="banner">
@@ -284,6 +292,7 @@
 <script src="renderer/tabs.js"></script>
 <script src="renderer/bookmarks.js"></script>
 <script src="renderer/adblock-ui.js"></script>
+<script src="renderer/blur.js"></script>
 <script src="renderer/app.js"></script>
 </body>
 </html>

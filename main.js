@@ -220,6 +220,13 @@ function createWindow() {
   mainWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWin.webContents.on('will-navigate', (e) => e.preventDefault());
   mainWin.on('closed', () => { mainWin = null; });
+  // Blur when away (renderer/blur.js): tell the page whether the window has focus.
+  const sendFocus = () => {
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-focus', { focused: mainWin.isFocused() });
+  };
+  mainWin.on('blur', sendFocus);
+  mainWin.on('focus', sendFocus);
+  mainWin.webContents.on('did-finish-load', sendFocus);
   // Mouse side buttons (back / forward) arrive as Windows app commands.
   mainWin.on('app-command', (_e, command) => {
     const action = { 'browser-backward': 'back', 'browser-forward': 'forward' }[command];
