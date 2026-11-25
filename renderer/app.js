@@ -287,9 +287,26 @@
   })();
 
   // ---- notes (encrypted on disk by the main process) ----
-  PWNotesUI.createNotesUI({
+  const notesUI = PWNotesUI.createNotesUI({
     root: document.getElementById('panel-notes'),
     store: window.workspace.notes,
     onNotice: showNotice,
+  });
+
+  // ---- updates (lib/updater.js): a downloaded version installs on quit, or now ----
+  window.workspace.onUpdateReady(({ version }) => {
+    showNotice(`Version ${version} is ready. It installs when you close the app.`, {
+      sticky: true,
+      action: {
+        label: 'Restart now',
+        onClick: async () => {
+          // Save the last note edit and the open tabs before the installer closes the app.
+          await notesUI.flush();
+          saveSessionNow();
+          const started = await window.workspace.installUpdate();
+          if (!started) showNotice('Could not start the update. It will install when you close the app.');
+        },
+      },
+    });
   });
 })();

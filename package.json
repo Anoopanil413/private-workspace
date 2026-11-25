@@ -83,6 +83,7 @@
   },
   "dependencies": {
     "@ghostery/adblocker": "2.20.3",
+    "electron-updater": "6.8.11",
     "koffi": "^2.16.3"
   }
 }

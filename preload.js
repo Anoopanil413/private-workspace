@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('workspace', {
   getProtection: () => ipcRenderer.invoke('get-protection'),
   onNotice: (fn) => ipcRenderer.on('workspace-notice', (_e, msg) =>
     fn(String(msg && msg.text), { sticky: Boolean(msg && msg.sticky) })),
+  onUpdateReady: (fn) => ipcRenderer.on('update:ready', (_e, msg) => fn({ version: String(msg && msg.version) })),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
   onWindowFocus: (fn) => ipcRenderer.on('workspace-focus', (_e, msg) => fn({ focused: Boolean(msg && msg.focused) })),
   onShortcut: (fn) => ipcRenderer.on('workspace-shortcut', (_e, msg) => fn({ action: String(msg && msg.action) })),
   onOpenTab: (fn) => ipcRenderer.on('workspace-open-tab', (_e, msg) =>

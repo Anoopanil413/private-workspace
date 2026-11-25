@@ -15,6 +15,14 @@ The installer isn't code-signed, so the first time Windows shows **"Windows prot
 Your notes, tabs and settings live in `%APPDATA%\private-workspace`, the same folder `npm start` uses, so they
 carry over between the installed app and a development run.
 
+## Updates
+
+The installed app updates itself from this repository's GitHub Releases. It checks when it starts and every 6
+hours, downloads a new version quietly in the background, then shows **"Version X is ready. It installs when you
+close the app."** with a **Restart now** button. Your last note edit and open tabs are saved before it restarts.
+If you're offline, or GitHub can't be reached, nothing is shown and it tries again later. It never installs an
+older version. (Running with `npm start` never checks for updates.)
+
 ## Run from source
 
 ```

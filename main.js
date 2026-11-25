@@ -15,6 +15,7 @@ const {
   validateDarkPrefs, darkModeFor, cdpCommandsFor, setSiteMode, setDefaultMode, emptyDarkPrefs, hostOf: darkHostOf,
 } = require('./lib/dark-mode');
 const { userDataToUse } = require('./lib/paths');
+const { createUpdater } = require('./lib/updater');
 
 // Keep the data in %APPDATA%\private-workspace (see lib/paths.js), before anything
 // reads it: notes, tabs, settings and the single-instance lock.
@@ -543,23 +544,59 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  startUpdater();
+});
+
+// ---- auto-update (lib/updater.js) ----
+// The installed app updates from GitHub Releases. PW_UPDATE_TEST_FEED lets a
+// development run try it against a local feed; the installed app ignores it.
+let updater = null;
+let readyVersion = null;
+function startUpdater() {
+  const { autoUpdater } = require('electron-updater');
+  updater = createUpdater({
+    autoUpdater,
+    isPackaged: app.isPackaged,
+    testFeedUrl: process.env.PW_UPDATE_TEST_FEED || null,
+    log: (msg) => console.log(`[updater] ${msg}`),
+    onReady: (version) => { readyVersion = version; sendUpdateReady(); },
+  });
+  updater.start();
+  // Tell the page again after it reloads.
+  mainWin?.webContents.on('did-finish-load', () => { if (readyVersion) sendUpdateReady(); });
+}
+function sendUpdateReady() {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('update:ready', { version: readyVersion });
+}
+
+// "Restart now": the installer closes this app, so everything is saved first. The page
+// has already sent its pending note and tab changes before asking.
+ipcMain.handle('update:install', async (event) => {
+  if (event.sender !== mainWin?.webContents || !updater || !readyVersion) return false;
+  await waitForSaves();
+  updater.install();
+  return true;
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-// Don't exit while a notes, session or dark-mode save is still being written (e.g. the
-// last edit, sent as the window closed); give up waiting after 5 s (a stuck disk).
-// Then exit directly: calling app.quit() again from here can be ignored while the first
-// quit is still in progress, which left the process running with no window (and the
-// single-instance lock then stopped the app from opening again).
+// Pending notes, session and dark-mode saves, waiting at most 5 s (a stuck disk).
 const SAVE_WAIT_MS = 5000;
+function waitForSaves() {
+  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), darkStore?.whenIdle()]);
+  return Promise.race([saves, new Promise((r) => setTimeout(r, SAVE_WAIT_MS))]);
+}
+
+// Don't exit while a save is still being written (e.g. the last edit, sent as the window
+// closed). Then exit directly: calling app.quit() again from here can be ignored while
+// the first quit is still in progress, which left the process running with no window
+// (and the single-instance lock then stopped the app from opening again).
 let savesSettled = false;
 app.on('will-quit', (e) => {
   if (savesSettled) return;
   e.preventDefault();
   savesSettled = true;
-  const saves = Promise.allSettled([notesStore.whenIdle(), sessionStore.whenIdle(), darkStore?.whenIdle()]);
-  Promise.race([saves, new Promise((r) => setTimeout(r, SAVE_WAIT_MS))]).finally(() => app.exit(0));
+  waitForSaves().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => {
