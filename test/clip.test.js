@@ -39,6 +39,18 @@ test('clipHtml cuts very long selections', () => {
   assert.ok(html.startsWith(`<blockquote>${'a'.repeat(20000)}…</blockquote>`));
 });
 
+test('pickSelection uses the page\'s full selection only when it is the text that was right-clicked', () => {
+  const { pickSelection } = require('../renderer/clip');
+  // Chromium shortened the menu's copy: the full text starts with it.
+  assert.equal(pickSelection('one two three four', 'one two'), 'one two three four');
+  // Same text with different line breaks / spacing still counts.
+  assert.equal(pickSelection('one\n\ntwo  three', 'one two three'), 'one\n\ntwo  three');
+  // Text selected inside a frame: the page's own selection is something else.
+  assert.equal(pickSelection('a long paragraph on the main page', 'phrase'), 'phrase');
+  // Nothing selected on the page itself.
+  assert.equal(pickSelection('', 'phrase'), 'phrase');
+});
+
 test('clipHtml gives nothing for an empty selection', () => {
   assert.equal(clipHtml({ text: '', title: 'T', url: 'https://e.com/' }), '');
   assert.equal(clipHtml({ text: '  \n ', title: 'T', url: 'https://e.com/' }), '');

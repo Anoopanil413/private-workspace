@@ -321,17 +321,20 @@
     shield: byId('drag-shield'),
     notesUI,
     isBrowserShown: () => browserShown(),
+    onNotice: showNotice,
   });
   // ---- right-click on selected page text: copy, or add it to a note (renderer/clip.js) ----
   const ctxMenu = PWContextMenu.createMenu(byId('ctx-menu'));
   tabs.onChange(() => ctxMenu.hide());
-  const noteBeside = () => (sideNotes.isOpen() && browserShown() ? notesUI.activeNote() : null);
+  window.workspace.onPageScroll(() => ctxMenu.hide());
+  document.addEventListener('wheel', () => ctxMenu.hide(), { passive: true });
+  const noteBeside = () => (sideNotes.isShown() ? notesUI.activeNote() : null);
   // The page's selection, in full: Chromium shortens the menu's copy of long selections.
   // Falls back to that copy (text selected inside a frame isn't the page's selection).
   async function selectedText(tab, fromMenu) {
     let full = '';
     try { full = String(await tab.webview.executeJavaScript('String(getSelection())')); } catch {}
-    return full.trim() && full.length >= fromMenu.length ? full : fromMenu;
+    return PWClip.pickSelection(full, fromMenu);
   }
   async function onMenuPick(item, tab, params) {
     if (item.action === 'copy') { try { tab.webview.copy(); } catch {} return; }
@@ -358,7 +361,10 @@
     const items = PWContextMenu.selectionMenu({ selectionText: params.selectionText, sideNote: noteBeside(), recent: notesUI.recent(6) });
     if (!items.length) return;
     // x, y are already in the window's coordinates (measured), not the page's.
-    ctxMenu.show(items, params.x, params.y, (item) => onMenuPick(item, tab, params));
+    ctxMenu.show(items, params.x, params.y, (item) => {
+      try { tab.webview.focus(); } catch {} // typing goes back to the page, as before the menu
+      onMenuPick(item, tab, params);
+    });
   }, true);
 
   // ---- tab groups (renderer/tab-groups.js): right-click a tab or a group's chip ----

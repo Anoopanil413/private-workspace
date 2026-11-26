@@ -271,9 +271,27 @@
       getHtml: () => RT.sanitizeHtml(editor.innerHTML),
       // Adds HTML at the end (text sent from a page) without moving the caret, and
       // shows it; saving goes through onChange like typing.
+      // When the editor is showing, the text goes in as an edit (Ctrl+Z undoes it); the
+      // caret and the focus go back where they were.
       appendHtml(html) {
-        editor.insertAdjacentHTML('beforeend', RT.sanitizeHtml(html || ''));
+        const clean = RT.sanitizeHtml(html || '');
+        const back = document.activeElement;
+        const pos = textOffsets();
+        editor.focus();
+        let done = false;
+        if (document.activeElement === editor) {
+          const r = document.createRange();
+          r.selectNodeContents(editor);
+          r.collapse(false);
+          sel().removeAllRanges();
+          sel().addRange(r);
+          try { done = document.execCommand('insertHTML', false, clean); } catch {}
+        }
+        if (!done) editor.insertAdjacentHTML('beforeend', clean);
+        scrub();
+        if (pos) restoreOffsets(pos);
         editor.scrollTop = editor.scrollHeight;
+        if (back && back !== editor && typeof back.focus === 'function') back.focus();
         changed();
       },
       setEnabled(on) {

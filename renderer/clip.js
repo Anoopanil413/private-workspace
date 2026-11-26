@@ -31,5 +31,15 @@
     return source ? `${quote}<div>— ${escape(source)}</div>` : quote;
   }
 
-  return { clipHtml, MAX_CLIP };
+  // Which text to clip: the page's own selection (complete; Chromium may shorten the
+  // menu's copy of a long one) only when it is the text that was right-clicked. Text
+  // selected inside a frame isn't the page's selection, so the menu's copy is used.
+  const squash = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  function pickSelection(full, fromMenu) {
+    const f = squash(full);
+    const m = squash(fromMenu);
+    return f && m && f.startsWith(m) ? full : fromMenu;
+  }
+
+  return { clipHtml, pickSelection, MAX_CLIP };
 });

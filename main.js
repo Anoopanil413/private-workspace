@@ -116,6 +116,7 @@ app.on('web-contents-created', (_e, contents) => {
   if (type === 'webview' || (type === 'window' && contents !== mainWin?.webContents)) {
     guardPageWindows(contents);
     forwardBrowserShortcuts(contents, type);
+    if (type === 'webview') tellScrolls(contents);
     // Dark mode for websites: each new page gets its site's setting.
     contents.on('did-start-navigation', (details, url, isInPlace, isMainFrame) => {
       if ((details?.isMainFrame ?? isMainFrame) && !(details?.isSameDocument ?? isInPlace)) applyDark(contents, details?.url ?? url);
@@ -134,6 +135,19 @@ app.on('web-contents-created', (_e, contents) => {
 // Keys pressed inside a web page never reach the host page, so browser shortcuts are
 // caught here and forwarded. In a page's pop-up window, Ctrl+W closes it and Ctrl+R
 // reloads it; other shortcuts are left to the page.
+// Scrolling inside a page doesn't reach the host page, which closes its right-click
+// menu on scroll: tell it (at most every 250 ms).
+function tellScrolls(contents) {
+  let last = 0;
+  contents.on('input-event', (_event, input) => {
+    if (input.type !== 'mouseWheel') return;
+    const now = Date.now();
+    if (now - last < 250) return;
+    last = now;
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('workspace-page-scroll');
+  });
+}
+
 function forwardBrowserShortcuts(contents, type) {
   contents.on('before-input-event', (event, input) => {
     // The main window's own page is created before mainWin is set, so it can land

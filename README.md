@@ -93,7 +93,7 @@ The usual browser keys work, also while you're typing inside a web page:
 | Ctrl+Shift+N | Notes beside the page (open / close) |
 
 The address bar opens sites (`example.com`), local addresses (`localhost:3000`, `192.168.1.10`) and searches
-DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
+DuckDuckGo for anything else. On the Notes screen only Ctrl+T and Ctrl+Shift+N work (both switch to the browser), so the notes
 editor keeps its own keys.
 
 ## Tab groups

@@ -33,7 +33,7 @@
   // area: the element holding the pages and the panel side by side.
   // isBrowserShown(): whether the Browser screen is showing (the editor lives on the
   // Notes screen while that one is shown).
-  function createSideNotes({ area, panel, divider, body, pickBtn, titleEl, newBtn, closeBtn, button, shield, notesUI, isBrowserShown }) {
+  function createSideNotes({ area, panel, divider, body, pickBtn, titleEl, newBtn, closeBtn, button, shield, notesUI, isBrowserShown, onNotice = () => {} }) {
     const prefs = readPrefs();
     let open = prefs.open;
     let width = prefs.width;
@@ -41,10 +41,15 @@
 
     const save = () => writePrefs({ open, width });
 
+    const hasRoom = () => clampSideWidth(width, area.clientWidth) > 0;
+    // Open, on the Browser screen, and the window wide enough.
+    const isShown = () => open && isBrowserShown() && hasRoom();
+
     function layout() {
       const w = clampSideWidth(width, area.clientWidth);
       panel.style.width = `${w}px`;
       panel.classList.toggle('no-room', w === 0);
+      button.setAttribute('aria-pressed', String(isShown()));
     }
 
     function paintTitle() {
@@ -62,7 +67,7 @@
     function sync() {
       const here = open && isBrowserShown();
       panel.hidden = !here;
-      button.setAttribute('aria-pressed', String(open));
+      button.setAttribute('aria-pressed', String(isShown()));
       if (here && !mounted) { notesUI.mountInto(body); mounted = true; }
       if (!here && mounted) { closePicker(); notesUI.mountInto(null); mounted = false; }
       if (here) { layout(); paintTitle(); }
@@ -75,7 +80,13 @@
       if (open && focus && mounted) notesUI.focus();
     }
 
-    const toggle = () => setOpen(!open);
+    const noRoom = () => onNotice('Make the window wider to have notes beside the page.');
+    function toggle() {
+      // Open but hidden for lack of room: say so instead of closing it unseen.
+      if (open && isBrowserShown() && !hasRoom()) { noRoom(); return; }
+      setOpen(!open);
+      if (open && isBrowserShown() && !hasRoom()) noRoom();
+    }
 
     // ---- resizing: while dragging, a shield covers the pages so they don't eat the mouse
     divider.addEventListener('pointerdown', (e) => {
@@ -96,6 +107,16 @@
       window.addEventListener('pointerup', up);
     });
     window.addEventListener('resize', () => { if (!panel.hidden) layout(); });
+    // Clicking into the page (or anywhere else) closes the note picker: clicks inside a
+    // page never reach this document, but the focus leaving the picker does. A press on
+    // the picker's own empty space (no focus target) doesn't count.
+    const inPicker = (el) => !!el && (pickBtn.contains(el) || !!(el.closest && el.closest('.notes-side')));
+    let pressing = false;
+    panel.addEventListener('pointerdown', (e) => { pressing = inPicker(e.target); });
+    window.addEventListener('pointerup', () => { pressing = false; });
+    panel.addEventListener('focusout', () => {
+      setTimeout(() => { if (!pressing && !inPicker(document.activeElement)) closePicker(); }, 0);
+    });
 
     // ---- header: note picker, new note, close
     pickBtn.addEventListener('click', () => {
@@ -113,7 +134,7 @@
     notesUI.onListChange(() => { if (mounted) paintTitle(); });
 
     sync();
-    return { toggle, isOpen: () => open, sync };
+    return { toggle, isOpen: () => open, isShown, sync };
   }
 
   return { clampSideWidth, createSideNotes, MIN_WIDTH, PAGE_MIN };
