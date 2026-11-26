@@ -90,10 +90,63 @@ The usual browser keys work, also while you're typing inside a web page:
 | Ctrl+F, then Enter / Shift+Enter, F3 / Shift+F3 | Find in page, next / previous match |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Zoom in / out / reset |
 | Ctrl+D | Add the page to quick open |
+| Ctrl+Shift+N | Notes beside the page (open / close) |
 
 The address bar opens sites (`example.com`), local addresses (`localhost:3000`, `192.168.1.10`) and searches
-DuckDuckGo for anything else. On the Notes screen only Ctrl+T works (it switches to the browser), so the notes
+DuckDuckGo for anything else. On the Notes screen only Ctrl+T and Ctrl+Shift+N work (both switch to the browser), so the notes
 editor keeps its own keys.
+
+## Tab groups
+
+Right-click a tab:
+
+- **Add to new group**: you can type the group's name straight away (Enter keeps it, Esc keeps the default
+  `Group N`).
+- **Add to group ▸**: one of the open groups.
+- **Remove from group**.
+
+A group shows as a coloured chip in front of its tabs. Click the chip to collapse the group into the chip
+(it shows how many tabs it has), and click again to expand it. Right-click the chip to **Rename**, change its
+**Colour** (8 colours), **Collapse / Expand**, **Ungroup** (its tabs stay open) or **Close group** (Ctrl+Shift+T
+reopens its tabs one by one). A group's tabs always sit together. Ctrl+Tab and Ctrl+1 … 9 skip the tabs of a
+collapsed group; opening one of them expands the group. Groups, their names, colours and collapsed state come back
+with your tabs after a restart (stored encrypted with the session).
+
+### Saved groups
+
+To keep a group for later, right-click its chip → **Save group**. Saved groups are listed in **🗂** (next to
+reload). **Open** brings all its tabs back as that group: only the first one loads straight away, the others when
+you click them. If it's already open, **Show** goes to it instead of opening a second copy. **＋ Save open tabs as a
+group** puts every page that isn't in a group yet into a new saved group (type its name).
+
+A saved group stays linked to its open copy: tabs you add, close or navigate, a new name or colour are saved
+automatically a second later. **Close group** keeps the saved copy as it was, so you can close it and reopen it
+later. To stop updating it, right-click the chip → **Saved ✓ · Stop saving** (the saved copy stays in 🗂).
+**🗑** in 🗂 deletes a saved group; its tabs stay open if they are. Up to 50 saved groups of 50 tabs each. They're
+stored encrypted (Windows DPAPI) in `groups.enc`, like your notes and tabs.
+
+## Notes beside the page
+
+Click **📝** next to the address bar, or press **Ctrl+Shift+N** (also while you're in a web page), to open a
+note on the right of the page, so you can read and write at the same time. Click the note's title at the top
+of the panel to pick or search another note; **＋** starts a new one. Drag the panel's left edge to resize it.
+The app remembers whether it was open and its width. It's the same note as on the Notes screen: while you type
+in it, the formatting keys below work, and browser keys the editor doesn't use (Ctrl+T, Ctrl+W, Ctrl+L …) still
+do. In a very narrow window the panel hides until there's room.
+
+## Send selected text to a note
+
+Select text on a web page and right-click it:
+
+- **Copy** copies it.
+- **Add to "<note>"** (when a note is open beside the page) adds it to that note straight away.
+- **Add to note ▸** lists your five newest notes and **＋ New note**.
+
+The text goes in as a quote, followed by the page's title and address (as plain text: notes don't keep links),
+for example `— Careers · careers.example.com/jobs`. Formatting from the page isn't kept, and very long selections
+are cut at 20,000 characters. The text goes straight into your encrypted notes, never through the clipboard. The
+menu is drawn inside the app's window, so it's hidden from screen capture like the rest of the app. Right-clicking
+without a selection does nothing, as before.
 
 ## Notes formatting
 

@@ -6,7 +6,10 @@
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
     const p = t.dataset.panel;
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x.id === 'panel-' + p));
+    // The notes editor lives beside the page or on the Notes screen (renderer/side-notes.js).
+    if (sideNotes) sideNotes.sync();
   }));
+  let sideNotes = null;
 
   // ---- protection toggle ----
   const shield = document.getElementById('shield');
@@ -43,6 +46,8 @@
     host: document.getElementById('webviews'),
     homeUrl: HOME,
     onNewTab: () => newTab(),
+    onTabMenu: (tab, x, y) => showTabMenu(tab, x, y),
+    onGroupMenu: (group, x, y) => showGroupMenu(group, x, y),
   });
   const isBlank = (u) => !u || u === PWTabs.NEW_TAB_URL;
   const toUrl = PWTabs.addressToUrl;
@@ -134,14 +139,15 @@
     if (isBlank(t.url)) focusUrl(); else t.webview.focus();
   }
 
+  // Tabs hidden in a collapsed group are skipped.
   function switchBy(delta) {
-    const list = tabs.list();
+    const list = tabs.visible();
     const i = list.indexOf(tabs.active());
     if (list.length > 1) tabs.activate(list[PWTabs.cycleIndex(list.length, i, delta)].id);
   }
 
   function switchTo(n) {
-    const list = tabs.list();
+    const list = tabs.visible();
     const i = PWTabs.indexForNumber(list.length, n);
     if (i !== null) tabs.activate(list[i].id);
   }
@@ -149,6 +155,7 @@
   // Returns true when the action was handled (so the key press is consumed).
   function runAction(action) {
     if (action === 'new-tab') { newTab(); return true; }
+    if (action === 'toggle-notes') { toggleSideNotes(); return true; }
     // Everything else only while the browser is shown; Notes keeps its own keys.
     if (!browserShown()) return false;
     const t = tabs.active();
@@ -181,6 +188,7 @@
 
   // Keys pressed in the host page (address bar, tab strip, ...).
   document.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) return; // the notes editor already used this key (Ctrl+B …)
     const action = PWShortcuts.matchShortcut(PWShortcuts.fromKeyboardEvent(e));
     if (action && runAction(action)) e.preventDefault();
   });
@@ -260,8 +268,8 @@
   function saveSessionNow() {
     clearTimeout(sessionTimer);
     sessionTimer = null;
-    const { tabs: list, activeIndex } = tabs.snapshot();
-    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex));
+    const { tabs: list, activeIndex, groups } = tabs.snapshot();
+    window.workspace.session.save(PWSession.sessionFromTabs(list, activeIndex, groups));
   }
   tabs.onListChange(() => {
     if (restoring) return;
@@ -271,13 +279,18 @@
   // Closing right after a change: send it now (the main process waits for the write).
   window.addEventListener('beforeunload', () => { if (sessionTimer) saveSessionNow(); });
 
-  (async () => {
+  // Settles when last time's tabs are back (saved groups wait for it: renderer/groups-ui.js).
+  const restored = (async () => {
     let saved = PWSession.emptySession();
     try { saved = PWSession.validateSession(await window.workspace.session.load()); } catch {}
     if (saved.tabs.length) {
       // Only the active tab loads now; the others load when first clicked.
-      for (const t of saved.tabs) tabs.open(t.url, { background: true, lazy: true, title: t.title });
-      tabs.activate(tabs.list()[saved.active].id);
+      const opened = saved.tabs.map((t) => tabs.open(t.url, { background: true, lazy: true, title: t.title }));
+      saved.groups.forEach((g, i) => {
+        const ids = opened.filter((_, k) => saved.tabs[k].group === i).map((t) => t.id);
+        tabs.createGroup(ids, g);
+      });
+      tabs.activate(opened[saved.active].id);
       const n = saved.tabs.length;
       showNotice(`Restored ${n} tab${n === 1 ? '' : 's'} from last time.`);
     } else {
@@ -292,6 +305,127 @@
     store: window.workspace.notes,
     onNotice: showNotice,
   });
+
+  // ---- notes beside the page (renderer/side-notes.js) ----
+  const byId = (id) => document.getElementById(id);
+  sideNotes = PWSideNotes.createSideNotes({
+    area: byId('browser-area'),
+    panel: byId('side-notes'),
+    divider: byId('side-divider'),
+    body: byId('side-body'),
+    pickBtn: byId('side-pick'),
+    titleEl: byId('side-title'),
+    newBtn: byId('side-new'),
+    closeBtn: byId('side-close'),
+    button: byId('side-notes-btn'),
+    shield: byId('drag-shield'),
+    notesUI,
+    isBrowserShown: () => browserShown(),
+    onNotice: showNotice,
+  });
+  // ---- right-click on selected page text: copy, or add it to a note (renderer/clip.js) ----
+  const ctxMenu = PWContextMenu.createMenu(byId('ctx-menu'));
+  tabs.onChange(() => ctxMenu.hide());
+  window.workspace.onPageScroll(() => ctxMenu.hide());
+  document.addEventListener('wheel', () => ctxMenu.hide(), { passive: true });
+  const noteBeside = () => (sideNotes.isShown() ? notesUI.activeNote() : null);
+  // The page's selection, in full: Chromium shortens the menu's copy of long selections.
+  // Falls back to that copy (text selected inside a frame isn't the page's selection).
+  async function selectedText(tab, fromMenu) {
+    let full = '';
+    try { full = String(await tab.webview.executeJavaScript('String(getSelection())')); } catch {}
+    return PWClip.pickSelection(full, fromMenu);
+  }
+  async function onMenuPick(item, tab, params) {
+    if (item.action === 'copy') { try { tab.webview.copy(); } catch {} return; }
+    if (item.action !== 'add') return;
+    const html = PWClip.clipHtml({ text: await selectedText(tab, params.selectionText), title: tab.title, url: tab.url });
+    if (!html) return;
+    const note = await notesUI.append(item.noteId, html);
+    if (!note.ok) { showNotice(`Could not add the text to a note: ${note.error || 'unknown error'}.`, { sticky: true }); return; }
+    const shown = noteBeside();
+    showNotice(`Added to "${note.title}".`, shown && shown.id === note.id ? {} : {
+      action: { label: 'Show', onClick: () => showNoteBeside(note.id) },
+    });
+  }
+  function showNoteBeside(id) {
+    notesUI.open(id);
+    if (!sideNotes.isOpen()) sideNotes.toggle();
+    if (!browserShown()) document.querySelector('.tab[data-panel="browser"]').click();
+  }
+  // <webview> events don't bubble: listen while they travel down (capture).
+  byId('webviews').addEventListener('context-menu', (e) => {
+    const tab = tabs.list().find((t) => t.webview === e.target);
+    const params = e.params;
+    if (!tab || !params) return;
+    const items = PWContextMenu.selectionMenu({ selectionText: params.selectionText, sideNote: noteBeside(), recent: notesUI.recent(6) });
+    if (!items.length) return;
+    // x, y are already in the window's coordinates (measured), not the page's.
+    ctxMenu.show(items, params.x, params.y, (item) => {
+      try { tab.webview.focus(); } catch {} // typing goes back to the page, as before the menu
+      onMenuPick(item, tab, params);
+    });
+  }, true);
+
+  // ---- tab groups (renderer/tab-groups.js): right-click a tab or a group's chip ----
+  const G = PWTabGroups;
+  const capital = (s) => s[0].toUpperCase() + s.slice(1);
+  function showTabMenu(tab, x, y) {
+    const others = tabs.groups().filter((g) => g.id !== tab.group);
+    const items = [{ label: 'Add to new group', action: 'new-group' }];
+    if (others.length) {
+      items.push({ label: 'Add to group', items: others.map((g) => ({ label: g.name, action: 'to-group', groupId: g.id, color: G.colorHex(g.color) })) });
+    }
+    if (tab.group) items.push({ label: 'Remove from group', action: 'ungroup-tab' });
+    items.push({ separator: true }, { label: 'Close tab', action: 'close-tab' });
+    ctxMenu.show(items, x, y, (item) => {
+      if (item.action === 'new-group') { const g = tabs.createGroup([tab.id]); if (g) tabs.startRename(g.id); }
+      if (item.action === 'to-group') tabs.addToGroup(tab.id, item.groupId);
+      if (item.action === 'ungroup-tab') tabs.ungroupTab(tab.id);
+      if (item.action === 'close-tab') tabs.close(tab.id);
+    });
+  }
+  // Saved groups: the 🗂 menu and linked groups (renderer/groups-ui.js).
+  const savedGroups = PWGroupsUI.createSavedGroups({
+    button: byId('groups-btn'),
+    pop: byId('groups-pop'),
+    tabs,
+    store: window.workspace.groups,
+    notify: showNotice,
+    whenRestored: restored,
+  });
+  function showGroupMenu(group, x, y) {
+    const items = [
+      group.savedId ? { label: 'Saved ✓ · Stop saving', action: 'unsave' } : { label: 'Save group', action: 'save' },
+      { separator: true },
+      { label: 'Rename…', action: 'rename' },
+      { label: 'Colour', items: G.GROUP_COLORS.map((c) => ({ label: capital(c.name) + (c.name === group.color ? ' ✓' : ''), action: 'color', value: c.name, color: c.hex })) },
+      { label: group.collapsed ? 'Expand' : 'Collapse', action: 'toggle' },
+      { separator: true },
+      { label: 'Ungroup', action: 'ungroup' },
+      { label: 'Close group', action: 'close-group' },
+    ];
+    ctxMenu.show(items, x, y, (item) => {
+      if (item.action === 'save') savedGroups.saveGroup(group.id);
+      if (item.action === 'unsave') savedGroups.stopSaving(group.id);
+      if (item.action === 'rename') tabs.startRename(group.id);
+      if (item.action === 'color') tabs.updateGroup(group.id, { color: item.value });
+      if (item.action === 'toggle') tabs.updateGroup(group.id, { collapsed: !group.collapsed });
+      if (item.action === 'ungroup') tabs.ungroup(group.id);
+      if (item.action === 'close-group') tabs.closeGroup(group.id);
+    });
+  }
+
+  // Ctrl+Shift+N: from the Notes screen it goes to the browser with the note beside it.
+  function toggleSideNotes() {
+    if (!browserShown()) {
+      if (!sideNotes.isOpen()) sideNotes.toggle();
+      document.querySelector('.tab[data-panel="browser"]').click();
+      notesUI.focus();
+      return;
+    }
+    sideNotes.toggle();
+  }
 
   // ---- updates (lib/updater.js): a downloaded version installs on quit, or now ----
   window.workspace.onUpdateReady(({ version }) => {

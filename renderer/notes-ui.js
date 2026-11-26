@@ -22,6 +22,10 @@
     let data = { version: 1, notes: [] };
     let activeId = null;
     let saveTimer = null;
+    // When notes.enc couldn't be read, nothing may be saved: it would replace every
+    // note with what's on screen (nothing).
+    let loadFailed = false;
+    const listListeners = [];
 
     const active = () => data.notes.find((n) => n.id === activeId) || null;
     const read_ = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -82,6 +86,7 @@
         li.textContent = search.value.trim() ? 'No notes match.' : 'No notes yet.';
         list.append(li);
       }
+      listListeners.forEach((fn) => fn());
     }
 
     function select(id) {
@@ -92,6 +97,7 @@
     }
 
     function addNote() {
+      if (loadFailed) return;
       const note = newNote();
       data = { version: 1, notes: [note, ...data.notes] };
       search.value = '';
@@ -262,12 +268,69 @@
         // Also keep the warning where the user looks for their notes.
         if (loaded.warning) status.textContent = loaded.warning;
       } catch (err) {
+        loadFailed = true;
         status.textContent = 'Could not open notes: ' + err.message;
       }
     }
 
-    init();
-    return { flush };
+    // The editor (toolbar, note, status) and the note list can move next to the web
+    // pages (renderer/side-notes.js). null puts them back on the Notes screen.
+    const wrap = $('.notes-wrap');
+    const home = wrap.parentNode;
+    const homeNext = wrap.nextSibling;
+    function mountInto(container) {
+      if (container) container.append(wrap);
+      else home.insertBefore(wrap, homeNext);
+    }
+
+    function activeNote() {
+      const note = active();
+      return note ? { id: note.id, title: N.noteTitle(note) } : null;
+    }
+
+    // Text sent from a page (renderer/clip.js). noteId null, or a note that no longer
+    // exists, makes a new note. The note open in the editor gets it through the editor,
+    // so what's on screen and what's saved stay the same.
+    // Returns { ok, id, title, error }.
+    async function append(noteId, html) {
+      await ready;
+      if (loadFailed) return { ok: false, error: 'your notes could not be opened, so nothing was added' };
+      const clean = PWRichText.sanitizeHtml(html);
+      let note = noteId ? data.notes.find((n) => n.id === noteId) : null;
+      if (note && note.id === activeId) {
+        editor.appendHtml(clean); // saved like typing; the status line shows the result
+        return { ok: true, ...activeNote() };
+      }
+      const now = Date.now();
+      if (note) {
+        note = { ...note, body: note.body + clean, format: 'html', updated: now };
+        data = { version: 1, notes: data.notes.map((n) => (n.id === note.id ? note : n)) };
+      } else {
+        note = { ...newNote(), body: clean, updated: now };
+        data = { version: 1, notes: [note, ...data.notes] };
+      }
+      renderList();
+      const result = await saveNow();
+      return { ok: !!(result && result.ok), error: result && result.error, id: note.id, title: N.noteTitle(note) };
+    }
+
+    const recent = (n) => N.sortByUpdated(data.notes).slice(0, n).map((note) => ({ id: note.id, title: N.noteTitle(note) }));
+    const open = (id) => { if (data.notes.some((n) => n.id === id)) { search.value = ''; select(id); } };
+
+    const ready = init();
+    return {
+      append,
+      recent,
+      open,
+      flush,
+      mountInto,
+      activeNote,
+      addNote,
+      focus: () => editor.focus(),
+      focusSearch: () => { search.focus(); search.select(); },
+      // Called after the list is drawn: a note was picked, added, renamed by editing…
+      onListChange: (fn) => { listListeners.push(fn); },
+    };
   }
 
   return { createNotesUI };

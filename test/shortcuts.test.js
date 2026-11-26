@@ -77,3 +77,8 @@ test('nextZoom steps through browser zoom levels and stops at the ends', () => {
   assert.equal(nextZoom(1.17, 1), 1.25); // between levels: go to the next one up
   assert.equal(nextZoom(1.17, -1), 1.1);
 });
+
+test('Ctrl+Shift+N toggles the notes side panel; Ctrl+N alone does nothing', () => {
+  assert.equal(matchShortcut(ctrl('N', { shift: true })), 'toggle-notes');
+  assert.equal(matchShortcut(ctrl('n')), null);
+});
