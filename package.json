@@ -1,7 +1,7 @@
 {
   "name": "private-workspace",
   "productName": "Private Workspace",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A screen-capture-proof window for private work. Content inside is hidden from screenshots and screen sharing.",
   "author": "Anoopanil413",
   "homepage": "https://github.com/Anoopanil413/private-workspace",
