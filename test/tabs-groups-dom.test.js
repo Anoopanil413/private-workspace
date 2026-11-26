@@ -43,3 +43,23 @@ test('a group keeps its tabs together and a closed group leaves no chip behind',
   assert.deepEqual(names(), ['b.test', '+']);
   assert.equal(tabs.active().id, b.id);
 });
+
+test('"Add to new group" on a tab in the middle of a group keeps both groups together', () => {
+  const { tabs, names } = setup();
+  const [a, b, c] = ['a', 'b', 'c'].map((x) => tabs.open(`https://${x}.test/`));
+  tabs.createGroup([a.id, b.id, c.id], { name: 'G1' });
+  tabs.createGroup([b.id], { name: 'G2' });
+  assert.deepEqual(names(), ['[G1]', 'a.test', 'c.test', '[G2]', 'b.test', '+']);
+});
+
+test('adding the shown tab to a collapsed group opens the group, so the shown tab is never hidden', () => {
+  const { tabs } = setup();
+  const [a, b, x] = ['a', 'b', 'x'].map((n) => tabs.open(`https://${n}.test/`));
+  const g = tabs.createGroup([a.id, b.id], { name: 'G' });
+  tabs.activate(x.id);
+  tabs.updateGroup(g.id, { collapsed: true });
+  tabs.addToGroup(x.id, g.id);
+  assert.equal(tabs.groups()[0].collapsed, false);
+  assert.equal(x.el.hidden, false);
+  assert.deepEqual(tabs.visible().map((t) => t.id), [a.id, b.id, x.id]);
+});

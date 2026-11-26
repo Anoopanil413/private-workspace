@@ -74,8 +74,11 @@
     const publicGroup = (g) => ({ id: g.id, name: g.name, color: g.color, collapsed: g.collapsed, savedId: g.savedId });
     const tabsOf = (groupId) => tabs.filter((t) => t.group === groupId);
     const tellGroup = (g, list) => groupListeners.forEach((fn) => fn(publicGroup(g), list));
-    // Something about a group changed (its tabs, their pages, its name …).
+    // Something about a group changed (its tabs, their pages, its name …). While a
+    // whole group is being closed it only reports once, when it's gone.
+    let muted = null;
     function groupChanged(groupId) {
+      if (groupId === muted) return;
       const g = findGroup(groupId);
       if (g) tellGroup(g, tabsOf(groupId).map((t) => ({ url: t.url, title: t.title })));
     }
@@ -270,9 +273,13 @@
       };
       makeChip(g);
       groups.push(g);
-      // The group goes where its first tab was.
+      // The group goes where its first tab was; if that tab was in a group, right after
+      // that group, so both groups' tabs stay together.
       const first = tabs.indexOf(list[0]);
-      moveTabs(list, first - tabs.slice(0, first).filter((t) => list.includes(t)).length);
+      const rest = tabs.filter((t) => !list.includes(t));
+      moveTabs(list, list[0].group
+        ? G.insertIndex(rest, list[0].group)
+        : first - tabs.slice(0, first).filter((t) => list.includes(t)).length);
       for (const t of list) t.group = g.id;
       for (const o of old) { groupChanged(o); removeGroupIfEmpty(o); }
       layout();
@@ -288,6 +295,9 @@
       const old = tab.group;
       moveTabs([tab], G.insertIndex(tabs.filter((t) => t !== tab), groupId));
       tab.group = groupId;
+      // The shown tab never hides in a collapsed group.
+      const g = findGroup(groupId);
+      if (tabId === activeId && g.collapsed) g.collapsed = false;
       if (old) { groupChanged(old); removeGroupIfEmpty(old); }
       layout();
       groupChanged(groupId);
@@ -348,7 +358,8 @@
         if (next && next !== a.id) activate(next);
         else if (onNewTab) onNewTab(); else open(homeUrl);
       }
-      for (const t of list) close(t.id);
+      muted = groupId;
+      try { for (const t of list) close(t.id); } finally { muted = null; }
     }
 
     // Inline rename on the chip: Enter or leaving keeps it, Esc cancels.

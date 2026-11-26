@@ -10,7 +10,11 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const SAVE_DELAY = 1000;
 
-  function createSavedGroups({ button, pop, tabs, store, notify, makeId = () => crypto.randomUUID() }) {
+  // whenRestored: settles once last session's tabs and groups are back. Until then (and
+  // until the saved list has loaded) group changes are not saved and nothing opens.
+  function createSavedGroups({
+    button, pop, tabs, store, notify, makeId = () => crypto.randomUUID(), whenRestored = Promise.resolve(), saveDelay = SAVE_DELAY,
+  }) {
     const G = self.PWTabGroups;
     let data = G.emptySaved();
     const timers = new Map(); // savedId -> timeout
@@ -32,11 +36,24 @@
       for (const g of tabs.groups()) if (g.savedId && !find(g.savedId)) tabs.updateGroup(g.id, { savedId: null });
     }
 
-    const ready = Promise.resolve()
-      .then(() => store.load())
-      .then((d) => { data = G.validateSaved(d); })
-      .catch(() => {})
-      .then(unlinkMissing);
+    // After a restart, an open group linked to a saved one is checked against it: if the
+    // session kept different pages (it keeps at most 50 tabs), the link is dropped rather
+    // than overwriting the saved copy with what's left.
+    function reconcile() {
+      for (const g of tabs.groups()) {
+        if (!g.savedId) continue;
+        const saved = find(g.savedId);
+        const urls = webTabsOf(g.id).map((t) => t.url);
+        const same = saved && urls.length === saved.tabs.length && urls.every((u, i) => u === saved.tabs[i].url);
+        if (!same) tabs.updateGroup(g.id, { savedId: null });
+      }
+    }
+
+    let settled = false;
+    const ready = Promise.all([
+      Promise.resolve().then(() => store.load()).then((d) => { data = G.validateSaved(d); }).catch(() => {}),
+      Promise.resolve(whenRestored).catch(() => {}),
+    ]).then(() => { reconcile(); settled = true; });
 
     function flushOne(savedId) {
       clearTimeout(timers.get(savedId));
@@ -53,11 +70,14 @@
     }
 
     tabs.onGroupChange((group, list) => {
-      if (!group.savedId) return;
+      if (!group.savedId || !settled) return; // a restore is not a change
       const id = group.savedId;
+      // The group was closed or ungrouped: keep its copy as it was, with any change
+      // still waiting (a rename just before) saved now.
+      if (!list.length) { flushOne(id); return; }
       pending.set(id, { name: group.name, color: group.color, tabs: list });
       clearTimeout(timers.get(id));
-      timers.set(id, setTimeout(() => ready.then(() => flushOne(id)), SAVE_DELAY));
+      timers.set(id, setTimeout(() => flushOne(id), saveDelay));
     });
     // Closing right after a change: send it now (the main process waits for the write).
     window.addEventListener('beforeunload', () => { for (const id of [...timers.keys()]) flushOne(id); });
@@ -82,7 +102,8 @@
       notify(`Saved "${g.name}". Reopen it any time from 🗂.`);
     }
 
-    function stopSaving(groupId) {
+    async function stopSaving(groupId) {
+      await ready;
       const g = tabs.groups().find((x) => x.id === groupId);
       if (!g || !g.savedId) return;
       flushOne(g.savedId); // keep its latest state
@@ -101,7 +122,8 @@
       await saving;
     }
 
-    function openSaved(savedId) {
+    async function openSaved(savedId) {
+      await ready;
       const saved = find(savedId);
       if (!saved) return;
       const open = openCopy(savedId);

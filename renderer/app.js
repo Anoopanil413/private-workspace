@@ -279,7 +279,8 @@
   // Closing right after a change: send it now (the main process waits for the write).
   window.addEventListener('beforeunload', () => { if (sessionTimer) saveSessionNow(); });
 
-  (async () => {
+  // Settles when last time's tabs are back (saved groups wait for it: renderer/groups-ui.js).
+  const restored = (async () => {
     let saved = PWSession.emptySession();
     try { saved = PWSession.validateSession(await window.workspace.session.load()); } catch {}
     if (saved.tabs.length) {
@@ -338,6 +339,7 @@
     const html = PWClip.clipHtml({ text: await selectedText(tab, params.selectionText), title: tab.title, url: tab.url });
     if (!html) return;
     const note = await notesUI.append(item.noteId, html);
+    if (!note.ok) { showNotice(`Could not add the text to a note: ${note.error || 'unknown error'}.`, { sticky: true }); return; }
     const shown = noteBeside();
     showNotice(`Added to "${note.title}".`, shown && shown.id === note.id ? {} : {
       action: { label: 'Show', onClick: () => showNoteBeside(note.id) },
@@ -384,6 +386,7 @@
     tabs,
     store: window.workspace.groups,
     notify: showNotice,
+    whenRestored: restored,
   });
   function showGroupMenu(group, x, y) {
     const items = [
